@@ -6099,6 +6099,8 @@ input {
   width: 200px;
   margin-bottom: 20px;
   font-size: 20px; }
+  .element-parent .topOptions .keyInput {
+    width: 200px; }
 
 .element-parent .bottomOptions {
   margin: 20px; }

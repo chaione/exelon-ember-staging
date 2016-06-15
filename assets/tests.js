@@ -103,7 +103,7 @@ define('portal/tests/components/element-parent/component.jshint', ['exports'], f
   QUnit.module('JSHint - components/element-parent/component.js');
   QUnit.test('should pass jshint', function (assert) {
     assert.expect(1);
-    assert.ok(false, 'components/element-parent/component.js should pass jshint.\ncomponents/element-parent/component.js: line 14, col 7, \'keys\' is defined but never used.\n\n1 error');
+    assert.ok(false, 'components/element-parent/component.js should pass jshint.\ncomponents/element-parent/component.js: line 24, col 7, \'keys\' is defined but never used.\n\n1 error');
   });
 });
 define('portal/tests/components/element-qualified/component.jshint', ['exports'], function (exports) {
@@ -166,7 +166,7 @@ define('portal/tests/custom-session/service.jshint', ['exports'], function (expo
   QUnit.module('JSHint - custom-session/service.js');
   QUnit.test('should pass jshint', function (assert) {
     assert.expect(1);
-    assert.ok(false, 'custom-session/service.js should pass jshint.\ncustom-session/service.js: line 10, col 9, \'$\' is not defined.\n\n1 error');
+    assert.ok(false, 'custom-session/service.js should pass jshint.\ncustom-session/service.js: line 12, col 9, \'$\' is not defined.\n\n1 error');
   });
 });
 define('portal/tests/deliveries/controller.jshint', ['exports'], function (exports) {
@@ -265,7 +265,7 @@ define('portal/tests/form/controller.jshint', ['exports'], function (exports) {
   QUnit.module('JSHint - form/controller.js');
   QUnit.test('should pass jshint', function (assert) {
     assert.expect(1);
-    assert.ok(false, 'form/controller.js should pass jshint.\nform/controller.js: line 16, col 69, Missing semicolon.\nform/controller.js: line 18, col 17, \'newElement\' is defined but never used.\nform/controller.js: line 93, col 17, \'sections\' is defined but never used.\n\n3 errors');
+    assert.ok(false, 'form/controller.js should pass jshint.\nform/controller.js: line 16, col 69, Missing semicolon.\nform/controller.js: line 18, col 17, \'newElement\' is defined but never used.\nform/controller.js: line 87, col 32, Missing semicolon.\nform/controller.js: line 88, col 32, Missing semicolon.\nform/controller.js: line 124, col 46, Unnecessary semicolon.\n\n5 errors');
   });
 });
 define('portal/tests/form/model.jshint', ['exports'], function (exports) {
@@ -283,7 +283,7 @@ define('portal/tests/form/route.jshint', ['exports'], function (exports) {
   QUnit.module('JSHint - form/route.js');
   QUnit.test('should pass jshint', function (assert) {
     assert.expect(1);
-    assert.ok(false, 'form/route.js should pass jshint.\nform/route.js: line 25, col 34, \'transition\' is defined but never used.\n\n1 error');
+    assert.ok(false, 'form/route.js should pass jshint.\nform/route.js: line 36, col 34, \'transition\' is defined but never used.\n\n1 error');
   });
 });
 define('portal/tests/forms/route.jshint', ['exports'], function (exports) {
@@ -2881,7 +2881,7 @@ define('portal/tests/login/controller.jshint', ['exports'], function (exports) {
   QUnit.module('JSHint - login/controller.js');
   QUnit.test('should pass jshint', function (assert) {
     assert.expect(1);
-    assert.ok(false, 'login/controller.js should pass jshint.\nlogin/controller.js: line 9, col 38, Expected \'!==\' and instead saw \'!=\'.\n\n1 error');
+    assert.ok(true, 'login/controller.js should pass jshint.');
   });
 });
 define('portal/tests/login/route.jshint', ['exports'], function (exports) {
