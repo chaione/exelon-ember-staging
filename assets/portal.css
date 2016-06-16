@@ -6052,48 +6052,6 @@ button.close {
   .hidden-print {
     display: none !important; } }
 
-body {
-  background-color: rgba(16, 20, 29, 0.75);
-  margin: 0px;
-  padding: 0px;
-  font-family: 'Maven Pro', sans-serif; }
-
-@media (min-width: 1200px) {
-  .container {
-    width: 970px; } }
-
-input {
-  color: black; }
-
-.form {
-  margin-top: 50px;
-  padding: 0px; }
-  .form .section {
-    margin-bottom: 100px;
-    background-color: rgba(12, 12, 26, 0.96); }
-  .form .section-titleArea {
-    padding-top: 10px;
-    padding-bottom: 10px;
-    padding-right: 5px;
-    padding-left: 5px;
-    border-bottom: 1px solid #1b2430; }
-  .form .section-title {
-    width: 50%;
-    min-width: 200px;
-    margin: 0px;
-    display: inline-block;
-    background-color: rgba(12, 12, 26, 0.96);
-    color: white;
-    outline: 0;
-    background: transparent;
-    border: none;
-    border-bottom: 2px solid rgba(12, 12, 26, 0.96);
-    font-size: 25px; }
-  .form .section-title:hover {
-    border-bottom: 2px solid #5a5aaf; }
-  .form .section-title:focus {
-    border-bottom: 2px solid #01fea9; }
-
 .element-parent .addElementBot {
   width: 40px;
   height: 40px;
@@ -6126,6 +6084,9 @@ input {
     max-width: 410px;
     width: 49%;
     display: inline-block; }
+  .element-parent .topOptions .selectTypeIcon {
+    height: 40px;
+    width: auto; }
 
 .element-parent .bottomOptions {
   margin: 20px; }
@@ -6143,6 +6104,60 @@ input {
   padding-bottom: 50px;
   padding-left: 20px;
   padding-right: 20px; }
+
+.dropdown-typeIcon {
+  height: 40px;
+  width: auto; }
+
+body {
+  background-color: rgba(16, 20, 29, 0.75);
+  margin: 0px;
+  padding: 0px;
+  font-family: 'Maven Pro', sans-serif; }
+
+@media (min-width: 1200px) {
+  .container {
+    width: 970px; } }
+
+input {
+  color: black; }
+
+.form .formHeader {
+  background-color: rgba(12, 12, 26, 0.96);
+  height: 100px; }
+  .form .formHeader .saveButton {
+    float: right;
+    position: relative;
+    top: 32px; }
+
+.formContent {
+  margin-top: 50px;
+  padding: 0px; }
+  .formContent .section {
+    margin-bottom: 100px;
+    background-color: rgba(12, 12, 26, 0.96); }
+  .formContent .section-titleArea {
+    padding-top: 10px;
+    padding-bottom: 10px;
+    padding-right: 5px;
+    padding-left: 5px;
+    border-bottom: 1px solid #1b2430; }
+  .formContent .section-title {
+    width: 50%;
+    min-width: 200px;
+    margin: 0px;
+    display: inline-block;
+    background-color: rgba(12, 12, 26, 0.96);
+    color: white;
+    outline: 0;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid rgba(12, 12, 26, 0.96);
+    font-size: 25px; }
+  .formContent .section-title:hover {
+    border-bottom: 2px solid #5a5aaf; }
+  .formContent .section-title:focus {
+    border-bottom: 2px solid #01fea9; }
 
 .input-label-and-check {
   display: inline-block; }
