@@ -90725,6 +90725,305 @@ define("ember-power-select/utils/update-input-value", ["exports"], function (exp
     input.value = value;
   }
 });
+define('ember-power-select-with-create/components/power-select-with-create', ['exports', 'ember', 'ember-power-select-with-create/templates/components/power-select-with-create', 'ember-power-select/utils/group-utils'], function (exports, _ember, _emberPowerSelectWithCreateTemplatesComponentsPowerSelectWithCreate, _emberPowerSelectUtilsGroupUtils) {
+  'use strict';
+
+  var computed = _ember['default'].computed;
+  var get = _ember['default'].get;
+
+  exports['default'] = _ember['default'].Component.extend({
+    tagName: '',
+    layout: _emberPowerSelectWithCreateTemplatesComponentsPowerSelectWithCreate['default'],
+    matcher: _emberPowerSelectUtilsGroupUtils.defaultMatcher,
+
+    // Lifecycle hooks
+    init: function init() {
+      this._super.apply(this, arguments);
+      _ember['default'].assert('{{power-select-with-create}} requires an `oncreate` function', this.get('oncreate') && typeof this.get('oncreate') === 'function');
+    },
+
+    // CPs
+    optionsArray: computed('options.[]', function () {
+      var options = this.get('options');
+      if (!options) {
+        return _ember['default'].A();
+      }
+      if (options.then) {
+        return options.then(function (value) {
+          return _ember['default'].A(value).toArray();
+        });
+      } else {
+        return _ember['default'].A(options).toArray();
+      }
+    }),
+
+    powerSelectComponentName: computed('multiple', function () {
+      return this.get('multiple') ? 'power-select-multiple' : 'power-select';
+    }),
+
+    shouldShowCreateOption: function shouldShowCreateOption(term) {
+      return this.get('showCreateWhen') ? this.get('showCreateWhen')(term) : true;
+    },
+
+    // Actions
+    actions: {
+      searchAndSuggest: function searchAndSuggest(term) {
+        var _this = this;
+
+        var newOptions = this.get('optionsArray');
+
+        if (term.length === 0) {
+          return newOptions;
+        }
+
+        if (this.get('search')) {
+          return _ember['default'].RSVP.resolve(this.get('search')(term)).then(function (results) {
+            if (results.toArray) {
+              results = results.toArray();
+            }
+
+            if (_this.shouldShowCreateOption(term)) {
+              results.unshift(_this.buildSuggestionForTerm(term));
+            }
+
+            return results;
+          });
+        }
+
+        newOptions = this.filter(_ember['default'].A(newOptions), term);
+        if (this.shouldShowCreateOption(term)) {
+          newOptions.unshift(this.buildSuggestionForTerm(term));
+        }
+
+        return newOptions;
+      },
+
+      selectOrCreate: function selectOrCreate(selection) {
+        var suggestion = undefined;
+        if (this.get('multiple')) {
+          suggestion = selection.filter(function (option) {
+            return option.__isSuggestion__;
+          })[0];
+        } else if (selection && selection.__isSuggestion__) {
+          suggestion = selection;
+        }
+
+        if (suggestion) {
+          this.get('oncreate')(suggestion.__value__);
+        } else {
+          this.get('onchange')(selection);
+        }
+      }
+    },
+
+    // Methods
+    filter: function filter(options, searchText) {
+      var _this2 = this;
+
+      var matcher = undefined;
+      if (this.get('searchField')) {
+        matcher = function (option, text) {
+          return _this2.matcher(get(option, _this2.get('searchField')), text);
+        };
+      } else {
+        matcher = function (option, text) {
+          return _this2.matcher(option, text);
+        };
+      }
+      return (0, _emberPowerSelectUtilsGroupUtils.filterOptions)(options || [], searchText, matcher);
+    },
+
+    buildSuggestionForTerm: function buildSuggestionForTerm(term) {
+      return {
+        __isSuggestion__: true,
+        __value__: term,
+        text: this.buildSuggestionLabel(term)
+      };
+    },
+
+    buildSuggestionLabel: function buildSuggestionLabel(term) {
+      var buildSuggestion = this.get('buildSuggestion');
+      if (buildSuggestion) {
+        return buildSuggestion(term);
+      }
+      return 'Add "' + term + '"...';
+    }
+  });
+});
+define("ember-power-select-with-create/templates/components/power-select-with-create", ["exports"], function (exports) {
+  "use strict";
+
+  exports["default"] = Ember.HTMLBars.template((function () {
+    var child0 = (function () {
+      var child0 = (function () {
+        return {
+          meta: {
+            "fragmentReason": false,
+            "revision": "Ember@2.5.1",
+            "loc": {
+              "source": null,
+              "start": {
+                "line": 44,
+                "column": 2
+              },
+              "end": {
+                "line": 46,
+                "column": 2
+              }
+            },
+            "moduleName": "modules/ember-power-select-with-create/templates/components/power-select-with-create.hbs"
+          },
+          isEmpty: false,
+          arity: 0,
+          cachedFragment: null,
+          hasRendered: false,
+          buildFragment: function buildFragment(dom) {
+            var el0 = dom.createDocumentFragment();
+            var el1 = dom.createTextNode("    ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createComment("");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createTextNode("\n");
+            dom.appendChild(el0, el1);
+            return el0;
+          },
+          buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+            var morphs = new Array(1);
+            morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
+            return morphs;
+          },
+          statements: [["content", "option.text", ["loc", [null, [45, 4], [45, 19]]]]],
+          locals: [],
+          templates: []
+        };
+      })();
+      var child1 = (function () {
+        return {
+          meta: {
+            "fragmentReason": false,
+            "revision": "Ember@2.5.1",
+            "loc": {
+              "source": null,
+              "start": {
+                "line": 46,
+                "column": 2
+              },
+              "end": {
+                "line": 48,
+                "column": 2
+              }
+            },
+            "moduleName": "modules/ember-power-select-with-create/templates/components/power-select-with-create.hbs"
+          },
+          isEmpty: false,
+          arity: 0,
+          cachedFragment: null,
+          hasRendered: false,
+          buildFragment: function buildFragment(dom) {
+            var el0 = dom.createDocumentFragment();
+            var el1 = dom.createTextNode("    ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createComment("");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createTextNode("\n");
+            dom.appendChild(el0, el1);
+            return el0;
+          },
+          buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+            var morphs = new Array(1);
+            morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
+            return morphs;
+          },
+          statements: [["inline", "yield", [["get", "option", ["loc", [null, [47, 12], [47, 18]]]], ["get", "term", ["loc", [null, [47, 19], [47, 23]]]]], [], ["loc", [null, [47, 4], [47, 25]]]]],
+          locals: [],
+          templates: []
+        };
+      })();
+      return {
+        meta: {
+          "fragmentReason": {
+            "name": "missing-wrapper",
+            "problems": ["wrong-type"]
+          },
+          "revision": "Ember@2.5.1",
+          "loc": {
+            "source": null,
+            "start": {
+              "line": 1,
+              "column": 0
+            },
+            "end": {
+              "line": 49,
+              "column": 0
+            }
+          },
+          "moduleName": "modules/ember-power-select-with-create/templates/components/power-select-with-create.hbs"
+        },
+        isEmpty: false,
+        arity: 2,
+        cachedFragment: null,
+        hasRendered: false,
+        buildFragment: function buildFragment(dom) {
+          var el0 = dom.createDocumentFragment();
+          var el1 = dom.createComment("");
+          dom.appendChild(el0, el1);
+          return el0;
+        },
+        buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+          var morphs = new Array(1);
+          morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
+          dom.insertBoundary(fragment, 0);
+          dom.insertBoundary(fragment, null);
+          return morphs;
+        },
+        statements: [["block", "if", [["get", "option.__isSuggestion__", ["loc", [null, [44, 8], [44, 31]]]]], [], 0, 1, ["loc", [null, [44, 2], [48, 9]]]]],
+        locals: ["option", "term"],
+        templates: [child0, child1]
+      };
+    })();
+    return {
+      meta: {
+        "fragmentReason": {
+          "name": "missing-wrapper",
+          "problems": ["wrong-type"]
+        },
+        "revision": "Ember@2.5.1",
+        "loc": {
+          "source": null,
+          "start": {
+            "line": 1,
+            "column": 0
+          },
+          "end": {
+            "line": 50,
+            "column": 0
+          }
+        },
+        "moduleName": "modules/ember-power-select-with-create/templates/components/power-select-with-create.hbs"
+      },
+      isEmpty: false,
+      arity: 0,
+      cachedFragment: null,
+      hasRendered: false,
+      buildFragment: function buildFragment(dom) {
+        var el0 = dom.createDocumentFragment();
+        var el1 = dom.createComment("");
+        dom.appendChild(el0, el1);
+        return el0;
+      },
+      buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+        var morphs = new Array(1);
+        morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
+        dom.insertBoundary(fragment, 0);
+        dom.insertBoundary(fragment, null);
+        return morphs;
+      },
+      statements: [["block", "component", [["get", "powerSelectComponentName", ["loc", [null, [1, 13], [1, 37]]]]], ["ariaDescribedBy", ["subexpr", "@mut", [["get", "ariaDescribedBy", ["loc", [null, [2, 20], [2, 35]]]]], [], []], "ariaInvalid", ["subexpr", "@mut", [["get", "ariaInvalid", ["loc", [null, [3, 16], [3, 27]]]]], [], []], "ariaLabel", ["subexpr", "@mut", [["get", "ariaLabel", ["loc", [null, [4, 14], [4, 23]]]]], [], []], "ariaLabelledBy", ["subexpr", "@mut", [["get", "ariaLabelledBy", ["loc", [null, [5, 19], [5, 33]]]]], [], []], "options", ["subexpr", "@mut", [["get", "optionsArray", ["loc", [null, [6, 12], [6, 24]]]]], [], []], "selected", ["subexpr", "@mut", [["get", "selected", ["loc", [null, [7, 13], [7, 21]]]]], [], []], "onchange", ["subexpr", "action", ["selectOrCreate"], [], ["loc", [null, [8, 13], [8, 38]]]], "onkeydown", ["subexpr", "@mut", [["get", "onkeydown", ["loc", [null, [9, 14], [9, 23]]]]], [], []], "onfocus", ["subexpr", "@mut", [["get", "onfocus", ["loc", [null, [10, 12], [10, 19]]]]], [], []], "onopen", ["subexpr", "@mut", [["get", "onopen", ["loc", [null, [11, 11], [11, 17]]]]], [], []], "onclose", ["subexpr", "@mut", [["get", "onclose", ["loc", [null, [12, 12], [12, 19]]]]], [], []], "search", ["subexpr", "action", ["searchAndSuggest"], [], ["loc", [null, [13, 11], [13, 38]]]], "disabled", ["subexpr", "@mut", [["get", "disabled", ["loc", [null, [14, 13], [14, 21]]]]], [], []], "placeholder", ["subexpr", "@mut", [["get", "placeholder", ["loc", [null, [15, 16], [15, 27]]]]], [], []], "searchEnabled", ["subexpr", "@mut", [["get", "searchEnabled", ["loc", [null, [16, 18], [16, 31]]]]], [], []], "searchPlaceholder", ["subexpr", "@mut", [["get", "searchPlaceholder", ["loc", [null, [17, 22], [17, 39]]]]], [], []], "searchField", ["subexpr", "@mut", [["get", "searchField", ["loc", [null, [18, 16], [18, 27]]]]], [], []], "matcher", ["subexpr", "@mut", [["get", "matcher", ["loc", [null, [19, 12], [19, 19]]]]], [], []], "loadingMessage", ["subexpr", "@mut", [["get", "loadingMessage", ["loc", [null, [20, 19], [20, 33]]]]], [], []], "noMatchesMessage", ["subexpr", "@mut", [["get", "noMatchesMessage", ["loc", [null, [21, 21], [21, 37]]]]], [], []], "searchMessage", ["subexpr", "@mut", [["get", "searchMessage", ["loc", [null, [22, 18], [22, 31]]]]], [], []], "triggerComponent", ["subexpr", "@mut", [["get", "triggerComponent", ["loc", [null, [23, 21], [23, 37]]]]], [], []], "selectedItemComponent", ["subexpr", "@mut", [["get", "selectedItemComponent", ["loc", [null, [24, 26], [24, 47]]]]], [], []], "afterOptionsComponent", ["subexpr", "@mut", [["get", "afterOptionsComponent", ["loc", [null, [25, 26], [25, 47]]]]], [], []], "beforeOptionsComponent", ["subexpr", "@mut", [["get", "beforeOptionsComponent", ["loc", [null, [26, 27], [26, 49]]]]], [], []], "optionsComponent", ["subexpr", "@mut", [["get", "optionsComponent", ["loc", [null, [27, 21], [27, 37]]]]], [], []], "renderInPlace", ["subexpr", "@mut", [["get", "renderInPlace", ["loc", [null, [28, 18], [28, 31]]]]], [], []], "closeOnSelect", ["subexpr", "@mut", [["get", "closeOnSelect", ["loc", [null, [29, 18], [29, 31]]]]], [], []], "allowClear", ["subexpr", "@mut", [["get", "allowClear", ["loc", [null, [30, 15], [30, 25]]]]], [], []], "verticalPosition", ["subexpr", "@mut", [["get", "verticalPosition", ["loc", [null, [31, 21], [31, 37]]]]], [], []], "horizontalPosition", ["subexpr", "@mut", [["get", "horizontalPosition", ["loc", [null, [32, 23], [32, 41]]]]], [], []], "class", ["subexpr", "@mut", [["get", "class", ["loc", [null, [33, 10], [33, 15]]]]], [], []], "triggerClass", ["subexpr", "@mut", [["get", "triggerClass", ["loc", [null, [34, 17], [34, 29]]]]], [], []], "dropdownClass", ["subexpr", "@mut", [["get", "dropdownClass", ["loc", [null, [35, 18], [35, 31]]]]], [], []], "extra", ["subexpr", "@mut", [["get", "extra", ["loc", [null, [36, 10], [36, 15]]]]], [], []], "initiallyOpened", ["subexpr", "@mut", [["get", "initiallyOpened", ["loc", [null, [37, 20], [37, 35]]]]], [], []], "matchTriggerWidth", ["subexpr", "@mut", [["get", "matchTriggerWidth", ["loc", [null, [38, 22], [38, 39]]]]], [], []], "destination", ["subexpr", "@mut", [["get", "destination", ["loc", [null, [39, 16], [39, 27]]]]], [], []], "tabindex", ["subexpr", "@mut", [["get", "tabindex", ["loc", [null, [40, 13], [40, 21]]]]], [], []], "dir", ["subexpr", "@mut", [["get", "dir", ["loc", [null, [41, 8], [41, 11]]]]], [], []]], 0, null, ["loc", [null, [1, 0], [49, 14]]]]],
+      locals: [],
+      templates: [child0]
+    };
+  })());
+});
 define('ember-resolver/container-debug-adapter', ['exports', 'ember', 'ember-resolver/utils/module-registry'], function (exports, _ember, _emberResolverUtilsModuleRegistry) {
   'use strict';
 

@@ -6072,11 +6072,27 @@ input {
     margin-bottom: 100px;
     background-color: rgba(12, 12, 26, 0.96); }
   .form .section-titleArea {
+    padding-top: 10px;
+    padding-bottom: 10px;
+    padding-right: 5px;
+    padding-left: 5px;
     border-bottom: 1px solid #1b2430; }
   .form .section-title {
+    width: 50%;
+    min-width: 200px;
     margin: 0px;
-    padding: 20px;
-    display: inline-block; }
+    display: inline-block;
+    background-color: rgba(12, 12, 26, 0.96);
+    color: white;
+    outline: 0;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid rgba(12, 12, 26, 0.96);
+    font-size: 25px; }
+  .form .section-title:hover {
+    border-bottom: 2px solid #5a5aaf; }
+  .form .section-title:focus {
+    border-bottom: 2px solid #01fea9; }
 
 .element-parent .addElementBot {
   width: 40px;
@@ -6087,20 +6103,29 @@ input {
   right: -50px; }
 
 .element-parent .triangle {
+  position: relative;
+  height: 0px; }
+
+.element-parent .svgtriangle {
   fill: #01fea9;
-  stroke: purple;
+  stroke: #01fea9;
   stroke-width: 1; }
 
 .element-parent .topOptions {
   position: relative;
-  top: -85px;
-  right: -50px;
   float: right;
-  width: 200px;
+  min-width: 400px;
+  width: 90%;
   margin-bottom: 20px;
   font-size: 20px; }
-  .element-parent .topOptions .keyInput {
-    width: 200px; }
+  .element-parent .topOptions .keyDropdown {
+    max-width: 430px;
+    width: 50%;
+    display: inline-block; }
+  .element-parent .topOptions .typeDropdown {
+    max-width: 410px;
+    width: 49%;
+    display: inline-block; }
 
 .element-parent .bottomOptions {
   margin: 20px; }
@@ -6114,7 +6139,10 @@ input {
   border-left: 5px solid #01fea9; }
 
 .element-parent .clickableArea {
-  padding: 50px; }
+  padding-top: 10px;
+  padding-bottom: 50px;
+  padding-left: 20px;
+  padding-right: 20px; }
 
 .input-label-and-check {
   display: inline-block; }
