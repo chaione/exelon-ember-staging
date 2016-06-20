@@ -283,7 +283,7 @@ define('portal/tests/form/controller.jshint', ['exports'], function (exports) {
   QUnit.module('JSHint - form/controller.js');
   QUnit.test('should pass jshint', function (assert) {
     assert.expect(1);
-    assert.ok(false, 'form/controller.js should pass jshint.\nform/controller.js: line 9, col 69, Missing semicolon.\nform/controller.js: line 10, col 17, \'newElement\' is defined but never used.\nform/controller.js: line 26, col 17, \'form\' is defined but never used.\nform/controller.js: line 27, col 17, \'lastSection\' is defined but never used.\nform/controller.js: line 36, col 17, \'newSection\' is defined but never used.\nform/controller.js: line 73, col 32, Missing semicolon.\nform/controller.js: line 74, col 32, Missing semicolon.\n\n7 errors');
+    assert.ok(false, 'form/controller.js should pass jshint.\nform/controller.js: line 9, col 69, Missing semicolon.\nform/controller.js: line 10, col 17, \'newElement\' is defined but never used.\nform/controller.js: line 26, col 17, \'form\' is defined but never used.\nform/controller.js: line 27, col 17, \'lastSection\' is defined but never used.\nform/controller.js: line 36, col 17, \'newSection\' is defined but never used.\nform/controller.js: line 73, col 32, Missing semicolon.\nform/controller.js: line 74, col 32, Missing semicolon.\nform/controller.js: line 111, col 44, Missing semicolon.\n\n8 errors');
   });
 });
 define('portal/tests/form/model.jshint', ['exports'], function (exports) {
@@ -301,7 +301,7 @@ define('portal/tests/form/route.jshint', ['exports'], function (exports) {
   QUnit.module('JSHint - form/route.js');
   QUnit.test('should pass jshint', function (assert) {
     assert.expect(1);
-    assert.ok(false, 'form/route.js should pass jshint.\nform/route.js: line 31, col 40, Missing semicolon.\nform/route.js: line 62, col 110, Expected \'===\' and instead saw \'==\'.\n\n2 errors');
+    assert.ok(false, 'form/route.js should pass jshint.\nform/route.js: line 31, col 42, Missing semicolon.\nform/route.js: line 66, col 116, Expected \'===\' and instead saw \'==\'.\nform/route.js: line 72, col 59, Missing semicolon.\nform/route.js: line 81, col 49, Missing semicolon.\n\n4 errors');
   });
 });
 define('portal/tests/forms/controller.jshint', ['exports'], function (exports) {

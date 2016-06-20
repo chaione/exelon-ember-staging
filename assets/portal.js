@@ -3856,7 +3856,7 @@ define('portal/form/controller', ['exports', 'ember'], function (exports, _ember
     exports['default'] = _ember['default'].Controller.extend({
         formsCtrl: _ember['default'].inject.controller('forms'),
         // activeElement
-
+        clickedSaving: false,
         actions: {
             addElement: function addElement() {
                 var form = this.get('model');
@@ -3958,6 +3958,7 @@ define('portal/form/controller', ['exports', 'ember'], function (exports, _ember
 
                 console.log('saving and refreshing ');
                 console.log(formObj);
+                model.set('clickedSaving', true);
                 this.transitionToRoute('forms');
                 // this.get('formsCtrl').send('refreshForms');
 
@@ -4016,49 +4017,56 @@ define('portal/form/route', ['exports', 'ember'], function (exports, _ember) {
 
                 var isDirty = false;
                 var model = this.currentModel;
-                model.get('sections').forEach(function (section) {
+                console.log(model.get('clickedSaving'));
+                if (!model.get('clickedSaving')) {
 
-                    section.get('elements').forEach(function (element) {
-                        if (element.get('hasDirtyAttributes') && element.get('dirtyType') === 'updated') {
-                            console.log('element dirty');
+                    model.get('sections').forEach(function (section) {
+
+                        section.get('elements').forEach(function (element) {
+                            if (element.get('hasDirtyAttributes') && element.get('dirtyType') === 'updated') {
+                                console.log('element dirty');
+                                isDirty = true;
+                                // console.log('-------------Saving Element',element.get('name'));
+                                // console.log('About to save');
+                                // element.save();
+                            }
+                            // if(element.get('hasDirtyAttributes') && element.get('dirtyType')==='deleted'){
+                            //     console.log('-------------Saving Element',element.get('name'));
+                            //     console.log('About to save');
+                            //     element.delete();
+                            // }
+                        });
+
+                        if (section.get('hasDirtyAttributes') && section.get('dirtyType') === 'updated') {
+                            console.log('section dirty');
                             isDirty = true;
-                            // console.log('-------------Saving Element',element.get('name'));
-                            // console.log('About to save');
-                            // element.save();
+
+                            // console.log('Saving Section',section.get('title'));
+                            // section.save();
                         }
-                        // if(element.get('hasDirtyAttributes') && element.get('dirtyType')==='deleted'){
-                        //     console.log('-------------Saving Element',element.get('name'));
-                        //     console.log('About to save');
-                        //     element.delete();
-                        // }
                     });
 
-                    if (section.get('hasDirtyAttributes') && section.get('dirtyType') === 'updated') {
-                        console.log('section dirty');
-                        isDirty = true;
-
-                        // console.log('Saving Section',section.get('title'));
-                        // section.save();
-                    }
-                });
-
-                if (isDirty) {
-                    if (confirm("Do you want to continue without saving your changes", "All data will be list") == true) {
-                        console.log("You pressed OK!");
+                    if (isDirty) {
+                        console.log('THIs is dirty!');
+                        if (confirm("Do you want to continue without saving your changes", "All data will be list") == true) {
+                            console.log("You pressed OK!");
+                        } else {
+                            console.log("You pressed Cancel!");
+                            model.set('clickedSaving', false);
+                            transition.abort();
+                        }
                     } else {
-                        console.log("You pressed Cancel!");
-                        transition.abort();
+                        console.log('not dirty');
                     }
-                    console.log('THIs is dirty!');
                 } else {
-                    console.log('not dirty');
+                    model.set('clickedSaving', false);
                 }
 
-                var form = this.currentModel;
+                // let form = this.currentModel;
+                // // if(form.get('hasDirtyAttributes')){
                 // if(form.get('hasDirtyAttributes')){
-                if (form.get('hasDirtyAttributes')) {
-                    console.log("Are you sure you dont want to save?");
-                }
+                //     console.log("Are you sure you dont want to save?");
+                // }
             }
         }
 
@@ -6610,7 +6618,7 @@ catch(err) {
 /* jshint ignore:start */
 
 if (!runningTests) {
-  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+0bf0c0fb"});
+  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+45a54416"});
 }
 
 /* jshint ignore:end */
