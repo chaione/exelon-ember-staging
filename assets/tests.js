@@ -283,7 +283,7 @@ define('portal/tests/form/controller.jshint', ['exports'], function (exports) {
   QUnit.module('JSHint - form/controller.js');
   QUnit.test('should pass jshint', function (assert) {
     assert.expect(1);
-    assert.ok(false, 'form/controller.js should pass jshint.\nform/controller.js: line 9, col 69, Missing semicolon.\nform/controller.js: line 10, col 17, \'newElement\' is defined but never used.\nform/controller.js: line 26, col 17, \'form\' is defined but never used.\nform/controller.js: line 27, col 17, \'lastSection\' is defined but never used.\nform/controller.js: line 36, col 17, \'newSection\' is defined but never used.\nform/controller.js: line 73, col 32, Missing semicolon.\nform/controller.js: line 74, col 32, Missing semicolon.\nform/controller.js: line 111, col 44, Missing semicolon.\n\n8 errors');
+    assert.ok(false, 'form/controller.js should pass jshint.\nform/controller.js: line 9, col 69, Missing semicolon.\nform/controller.js: line 10, col 17, \'newElement\' is defined but never used.\nform/controller.js: line 26, col 17, \'form\' is defined but never used.\nform/controller.js: line 27, col 17, \'lastSection\' is defined but never used.\nform/controller.js: line 36, col 17, \'newSection\' is defined but never used.\nform/controller.js: line 71, col 32, Missing semicolon.\nform/controller.js: line 72, col 32, Missing semicolon.\nform/controller.js: line 111, col 44, Missing semicolon.\nform/controller.js: line 112, col 13, \'$\' is not defined.\nform/controller.js: line 125, col 15, \'sleep\' is not defined.\n\n10 errors');
   });
 });
 define('portal/tests/form/model.jshint', ['exports'], function (exports) {

@@ -932,13 +932,13 @@ define('portal/components/element-dropdown/component', ['exports', 'ember'], fun
 	// “Contraband Found, Missing Paperwork, Failed Search, Failed Itemizer, Arrived at Wrong Time, Other"
 	exports['default'] = _ember['default'].Component.extend({
 		dropdownOptions: dropdownOptions,
-		currentDropdownChoice: _ember['default'].computed('input.placeholder', function () {
-			var dropdownSelection = this.get('input.placeholder');
+		currentDropdownChoice: _ember['default'].computed('input.options', function () {
+			var dropdownSelection = this.get('input.options');
 			console.log(dropdownSelection);
 			// debugger;
 			var choice = -1;
 			for (var i = 0; i < dropdownOptions.length; i++) {
-				if (dropdownOptions[i].value == this.get('input.placeholder')) {
+				if (dropdownOptions[i].value == this.get('input.options')) {
 					choice = i;
 				}
 			}
@@ -950,7 +950,7 @@ define('portal/components/element-dropdown/component', ['exports', 'ember'], fun
 		actions: {
 			onDropDownTypeClick: function onDropDownTypeClick(selection) {
 				// this.set('currentDropdownChoice', selection);
-				this.set('input.placeholder', selection.value);
+				this.set('input.options', selection.value);
 			}
 		}
 	});
@@ -3827,6 +3827,7 @@ define('portal/element/model', ['exports', 'ember-data', 'ember-data/model'], fu
     needs_validation: _emberData['default'].attr('string'),
     capitalization_type: _emberData['default'].attr('string'),
     keyboard_type: _emberData['default'].attr('string'),
+    options: _emberData['default'].attr('string'),
     section: _emberData['default'].hasMany('section')
   });
 });
@@ -3914,13 +3915,11 @@ define('portal/form/controller', ['exports', 'ember'], function (exports, _ember
             saveForm: function saveForm() {
                 var model = this.get('model');
                 var formObj = {
-
                     "id": model.get('id'),
                     "type": "forms",
                     "name": model.get('name'),
                     "revision": model.get('revision'),
                     "form-type": model.get('formType')
-
                 };
 
                 var sectionObj = {};
@@ -3947,6 +3946,7 @@ define('portal/form/controller', ['exports', 'ember'], function (exports, _ember
                                     "required": element.get('required'),
                                     "needs_validation": element.get('needs_validation'),
                                     "capitalization_type": element.get('capitalization_type'),
+                                    "options": element.get('options'),
                                     "keyboard_type": element.get('keyboard_type')
                                 };
                                 sectionObj.elements.push(elementObj);
@@ -3958,23 +3958,24 @@ define('portal/form/controller', ['exports', 'ember'], function (exports, _ember
 
                 console.log('saving and refreshing ');
                 console.log(formObj);
+                console.log(JSON.stringify(formObj));
                 model.set('clickedSaving', true);
-                this.transitionToRoute('forms');
+                $.ajax({
+                    method: "PATCH",
+                    url: "https://exelon-api.herokuapp.com/v1/forms/1",
+                    data: JSON.stringify(formObj),
+                    headers: {
+                        "Authorization": "asdf",
+                        "X-SITE-ID": "1",
+                        "Accept": "application/json",
+                        "Content-Type": "application/json"
+                    }
+                }).done(function (msg) {
+                    console.log(msg);
+                    sleep(2000);
+                    this.transitionToRoute('forms');
+                });
                 // this.get('formsCtrl').send('refreshForms');
-
-                // $.ajax({
-                //   method: "PATCH",
-                //   url: "https://exelon-api.herokuapp.com/v1/forms/1",
-                //   data: formObj,
-                //   headers: {
-                //     "X-SITE-ID": "1",
-                //     "Accept": "application/json",
-                //     "Content-Type": "application/json"
-                //   }
-                // })
-                // .done(function( msg ) {
-                //   console.log(msg);
-                // });
             }
         }
     });
@@ -6618,7 +6619,7 @@ catch(err) {
 /* jshint ignore:start */
 
 if (!runningTests) {
-  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+45a54416"});
+  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+4852c6c0"});
 }
 
 /* jshint ignore:end */
