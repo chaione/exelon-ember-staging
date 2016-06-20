@@ -6098,6 +6098,8 @@ button.close {
 .element-parent.is-active {
   box-shadow: 0px 0px 8px #bfffea;
   border-left: 5px solid #01fea9; }
+  .element-parent.is-active:hover {
+    cursor: default; }
 
 .element-parent .clickableArea {
   padding-top: 10px;
@@ -6133,6 +6135,9 @@ input {
 .formContent {
   margin-top: 50px;
   padding: 0px; }
+  .formContent .section-bottom {
+    background-color: #1b2430;
+    padding: 10px; }
   .formContent .section {
     margin-bottom: 100px;
     background-color: rgba(12, 12, 26, 0.96); }
