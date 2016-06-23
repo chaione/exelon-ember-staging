@@ -301,7 +301,7 @@ define('portal/tests/form/route.jshint', ['exports'], function (exports) {
   QUnit.module('JSHint - form/route.js');
   QUnit.test('should pass jshint', function (assert) {
     assert.expect(1);
-    assert.ok(false, 'form/route.js should pass jshint.\nform/route.js: line 31, col 42, Missing semicolon.\nform/route.js: line 66, col 116, Expected \'===\' and instead saw \'==\'.\nform/route.js: line 72, col 59, Missing semicolon.\nform/route.js: line 81, col 49, Missing semicolon.\n\n4 errors');
+    assert.ok(false, 'form/route.js should pass jshint.\nform/route.js: line 29, col 42, Missing semicolon.\nform/route.js: line 48, col 116, Expected \'===\' and instead saw \'==\'.\nform/route.js: line 50, col 59, Missing semicolon.\nform/route.js: line 58, col 49, Missing semicolon.\n\n4 errors');
   });
 });
 define('portal/tests/forms/controller.jshint', ['exports'], function (exports) {

@@ -6107,6 +6107,9 @@ button.close {
   padding-left: 20px;
   padding-right: 20px; }
 
+.element-parent .questionText {
+  float: left; }
+
 .dropdown-typeIcon {
   height: 40px;
   width: auto; }

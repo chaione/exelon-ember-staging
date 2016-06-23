@@ -667,6 +667,7 @@ define("portal/components/element-date/template", ["exports"], function (exports
           var el1 = dom.createTextNode("	");
           dom.appendChild(el0, el1);
           var el1 = dom.createElement("div");
+          dom.setAttribute(el1, "class", "questionText");
           var el2 = dom.createTextNode("Question Text");
           dom.appendChild(el1, el2);
           dom.appendChild(el0, el1);
@@ -814,6 +815,7 @@ define("portal/components/element-date-viewonly/template", ["exports"], function
           var el1 = dom.createTextNode("	");
           dom.appendChild(el0, el1);
           var el1 = dom.createElement("div");
+          dom.setAttribute(el1, "class", "questionText");
           var el2 = dom.createTextNode("Question Text");
           dom.appendChild(el1, el2);
           dom.appendChild(el0, el1);
@@ -966,11 +968,11 @@ define("portal/components/element-dropdown/template", ["exports"], function (exp
             "loc": {
               "source": null,
               "start": {
-                "line": 4,
+                "line": 9,
                 "column": 4
               },
               "end": {
-                "line": 10,
+                "line": 15,
                 "column": 4
               }
             },
@@ -995,7 +997,7 @@ define("portal/components/element-dropdown/template", ["exports"], function (exp
             morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
             return morphs;
           },
-          statements: [["content", "type.name", ["loc", [null, [9, 8], [9, 21]]]]],
+          statements: [["content", "type.name", ["loc", [null, [14, 8], [14, 21]]]]],
           locals: ["type"],
           templates: []
         };
@@ -1008,11 +1010,11 @@ define("portal/components/element-dropdown/template", ["exports"], function (exp
             "loc": {
               "source": null,
               "start": {
-                "line": 13,
+                "line": 18,
                 "column": 8
               },
               "end": {
-                "line": 20,
+                "line": 25,
                 "column": 8
               }
             },
@@ -1080,11 +1082,11 @@ define("portal/components/element-dropdown/template", ["exports"], function (exp
             "loc": {
               "source": null,
               "start": {
-                "line": 22,
+                "line": 27,
                 "column": 5
               },
               "end": {
-                "line": 31,
+                "line": 36,
                 "column": 8
               }
             },
@@ -1170,7 +1172,7 @@ define("portal/components/element-dropdown/template", ["exports"], function (exp
               "column": 0
             },
             "end": {
-              "line": 33,
+              "line": 38,
               "column": 0
             }
           },
@@ -1187,6 +1189,25 @@ define("portal/components/element-dropdown/template", ["exports"], function (exp
           var el1 = dom.createElement("br");
           dom.appendChild(el0, el1);
           var el1 = dom.createTextNode("\n    ");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createElement("br");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createTextNode("\n    ");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createElement("div");
+          dom.setAttribute(el1, "class", "questionText");
+          var el2 = dom.createTextNode("Question Text");
+          dom.appendChild(el1, el2);
+          dom.appendChild(el0, el1);
+          var el1 = dom.createTextNode("\n    ");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createComment("");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createTextNode("\n    ");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createElement("br");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createTextNode("\n\n    ");
           dom.appendChild(el0, el1);
           var el1 = dom.createElement("div");
           var el2 = dom.createTextNode("DROPDOWN LIST SELECTION");
@@ -1219,14 +1240,15 @@ define("portal/components/element-dropdown/template", ["exports"], function (exp
           return el0;
         },
         buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-          var element0 = dom.childAt(fragment, [9]);
-          var morphs = new Array(3);
-          morphs[0] = dom.createMorphAt(fragment, 5, 5, contextualElement);
-          morphs[1] = dom.createMorphAt(element0, 1, 1);
-          morphs[2] = dom.createMorphAt(element0, 3, 3);
+          var element0 = dom.childAt(fragment, [17]);
+          var morphs = new Array(4);
+          morphs[0] = dom.createMorphAt(fragment, 7, 7, contextualElement);
+          morphs[1] = dom.createMorphAt(fragment, 13, 13, contextualElement);
+          morphs[2] = dom.createMorphAt(element0, 1, 1);
+          morphs[3] = dom.createMorphAt(element0, 3, 3);
           return morphs;
         },
-        statements: [["block", "power-select", [], ["selected", ["subexpr", "@mut", [["get", "currentDropdownChoice", ["loc", [null, [5, 17], [5, 38]]]]], [], []], "searchEnabled", false, "options", ["subexpr", "@mut", [["get", "dropdownOptions", ["loc", [null, [7, 16], [7, 31]]]]], [], []], "onchange", ["subexpr", "action", ["onDropDownTypeClick"], [], ["loc", [null, [8, 17], [8, 47]]]]], 0, null, ["loc", [null, [4, 4], [10, 21]]]], ["block", "if", [["subexpr", "eq", [["get", "input.placeholder", ["loc", [null, [13, 18], [13, 35]]]], "Contraband Found, Missing Paperwork, Failed Search, Failed Itemizer, Arrived at Wrong Time, Other"], [], ["loc", [null, [13, 14], [13, 136]]]]], [], 1, null, ["loc", [null, [13, 8], [20, 15]]]], ["block", "if", [["subexpr", "eq", [["get", "input.placeholder", ["loc", [null, [22, 15], [22, 32]]]], "Common Carrier, Non Common Carrier, Bulk Materials, Radioactive Or Hazmat, Emergency, Construction, Passenger IMP, PassengerNon IMP"], [], ["loc", [null, [22, 11], [22, 167]]]]], [], 2, null, ["loc", [null, [22, 5], [31, 15]]]]],
+        statements: [["inline", "input", [], ["class", "form-control", "type", "text", "value", ["subexpr", "@mut", [["get", "input.name", ["loc", [null, [5, 51], [5, 61]]]]], [], []], "placeholder", "Question"], ["loc", [null, [5, 4], [5, 86]]]], ["block", "power-select", [], ["selected", ["subexpr", "@mut", [["get", "currentDropdownChoice", ["loc", [null, [10, 17], [10, 38]]]]], [], []], "searchEnabled", false, "options", ["subexpr", "@mut", [["get", "dropdownOptions", ["loc", [null, [12, 16], [12, 31]]]]], [], []], "onchange", ["subexpr", "action", ["onDropDownTypeClick"], [], ["loc", [null, [13, 17], [13, 47]]]]], 0, null, ["loc", [null, [9, 4], [15, 21]]]], ["block", "if", [["subexpr", "eq", [["get", "input.placeholder", ["loc", [null, [18, 18], [18, 35]]]], "Contraband Found, Missing Paperwork, Failed Search, Failed Itemizer, Arrived at Wrong Time, Other"], [], ["loc", [null, [18, 14], [18, 136]]]]], [], 1, null, ["loc", [null, [18, 8], [25, 15]]]], ["block", "if", [["subexpr", "eq", [["get", "input.placeholder", ["loc", [null, [27, 15], [27, 32]]]], "Common Carrier, Non Common Carrier, Bulk Materials, Radioactive Or Hazmat, Emergency, Construction, Passenger IMP, PassengerNon IMP"], [], ["loc", [null, [27, 11], [27, 167]]]]], [], 2, null, ["loc", [null, [27, 5], [36, 15]]]]],
         locals: [],
         templates: [child0, child1, child2]
       };
@@ -1240,11 +1262,11 @@ define("portal/components/element-dropdown/template", ["exports"], function (exp
             "loc": {
               "source": null,
               "start": {
-                "line": 36,
+                "line": 43,
                 "column": 8
               },
               "end": {
-                "line": 43,
+                "line": 50,
                 "column": 8
               }
             },
@@ -1313,11 +1335,11 @@ define("portal/components/element-dropdown/template", ["exports"], function (exp
               "loc": {
                 "source": null,
                 "start": {
-                  "line": 44,
+                  "line": 51,
                   "column": 16
                 },
                 "end": {
-                  "line": 53,
+                  "line": 60,
                   "column": 16
                 }
               },
@@ -1397,11 +1419,11 @@ define("portal/components/element-dropdown/template", ["exports"], function (exp
               "loc": {
                 "source": null,
                 "start": {
-                  "line": 53,
+                  "line": 60,
                   "column": 16
                 },
                 "end": {
-                  "line": 56,
+                  "line": 63,
                   "column": 16
                 }
               },
@@ -1438,11 +1460,11 @@ define("portal/components/element-dropdown/template", ["exports"], function (exp
             "loc": {
               "source": null,
               "start": {
-                "line": 43,
+                "line": 50,
                 "column": 8
               },
               "end": {
-                "line": 57,
+                "line": 64,
                 "column": 8
               }
             },
@@ -1465,7 +1487,7 @@ define("portal/components/element-dropdown/template", ["exports"], function (exp
             dom.insertBoundary(fragment, null);
             return morphs;
           },
-          statements: [["block", "if", [["subexpr", "eq", [["get", "input.placeholder", ["loc", [null, [44, 26], [44, 43]]]], "Common Carrier, Non Common Carrier, Bulk Materials, Radioactive Or Hazmat, Emergency, Construction, Passenger IMP, PassengerNon IMP"], [], ["loc", [null, [44, 22], [44, 178]]]]], [], 0, 1, ["loc", [null, [44, 16], [56, 23]]]]],
+          statements: [["block", "if", [["subexpr", "eq", [["get", "input.placeholder", ["loc", [null, [51, 26], [51, 43]]]], "Common Carrier, Non Common Carrier, Bulk Materials, Radioactive Or Hazmat, Emergency, Construction, Passenger IMP, PassengerNon IMP"], [], ["loc", [null, [51, 22], [51, 178]]]]], [], 0, 1, ["loc", [null, [51, 16], [63, 23]]]]],
           locals: [],
           templates: [child0, child1]
         };
@@ -1477,11 +1499,11 @@ define("portal/components/element-dropdown/template", ["exports"], function (exp
           "loc": {
             "source": null,
             "start": {
-              "line": 33,
+              "line": 38,
               "column": 0
             },
             "end": {
-              "line": 61,
+              "line": 68,
               "column": 0
             }
           },
@@ -1497,7 +1519,13 @@ define("portal/components/element-dropdown/template", ["exports"], function (exp
           dom.appendChild(el0, el1);
           var el1 = dom.createElement("br");
           dom.appendChild(el0, el1);
-          var el1 = dom.createTextNode("\n	");
+          var el1 = dom.createTextNode("\n    ");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createElement("div");
+          var el2 = dom.createComment("");
+          dom.appendChild(el1, el2);
+          dom.appendChild(el0, el1);
+          var el1 = dom.createTextNode("\n\n	");
           dom.appendChild(el0, el1);
           var el1 = dom.createElement("ul");
           var el2 = dom.createTextNode("\n");
@@ -1512,11 +1540,12 @@ define("portal/components/element-dropdown/template", ["exports"], function (exp
           return el0;
         },
         buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-          var morphs = new Array(1);
-          morphs[0] = dom.createMorphAt(dom.childAt(fragment, [3]), 1, 1);
+          var morphs = new Array(2);
+          morphs[0] = dom.createMorphAt(dom.childAt(fragment, [3]), 0, 0);
+          morphs[1] = dom.createMorphAt(dom.childAt(fragment, [5]), 1, 1);
           return morphs;
         },
-        statements: [["block", "if", [["subexpr", "eq", [["get", "input.placeholder", ["loc", [null, [36, 18], [36, 35]]]], "Contraband Found, Missing Paperwork, Failed Search, Failed Itemizer, Arrived at Wrong Time, Other"], [], ["loc", [null, [36, 14], [36, 136]]]]], [], 0, 1, ["loc", [null, [36, 8], [57, 15]]]]],
+        statements: [["content", "input.name", ["loc", [null, [40, 9], [40, 23]]]], ["block", "if", [["subexpr", "eq", [["get", "input.placeholder", ["loc", [null, [43, 18], [43, 35]]]], "Contraband Found, Missing Paperwork, Failed Search, Failed Itemizer, Arrived at Wrong Time, Other"], [], ["loc", [null, [43, 14], [43, 136]]]]], [], 0, 1, ["loc", [null, [43, 8], [64, 15]]]]],
         locals: [],
         templates: [child0, child1]
       };
@@ -1535,7 +1564,7 @@ define("portal/components/element-dropdown/template", ["exports"], function (exp
             "column": 0
           },
           "end": {
-            "line": 61,
+            "line": 68,
             "column": 7
           }
         },
@@ -1558,7 +1587,7 @@ define("portal/components/element-dropdown/template", ["exports"], function (exp
         dom.insertBoundary(fragment, null);
         return morphs;
       },
-      statements: [["block", "if", [["get", "isActive", ["loc", [null, [1, 6], [1, 14]]]]], [], 0, 1, ["loc", [null, [1, 0], [61, 7]]]]],
+      statements: [["block", "if", [["get", "isActive", ["loc", [null, [1, 6], [1, 14]]]]], [], 0, 1, ["loc", [null, [1, 0], [68, 7]]]]],
       locals: [],
       templates: [child0, child1]
     };
@@ -1599,6 +1628,7 @@ define("portal/components/element-label/template", ["exports"], function (export
           var el1 = dom.createTextNode("	");
           dom.appendChild(el0, el1);
           var el1 = dom.createElement("div");
+          dom.setAttribute(el1, "class", "questionText");
           var el2 = dom.createTextNode("Label Text");
           dom.appendChild(el1, el2);
           dom.appendChild(el0, el1);
@@ -2765,6 +2795,7 @@ define("portal/components/element-qualified/template", ["exports"], function (ex
           var el1 = dom.createTextNode("	");
           dom.appendChild(el0, el1);
           var el1 = dom.createElement("div");
+          dom.setAttribute(el1, "class", "questionText");
           var el2 = dom.createTextNode("Question Text");
           dom.appendChild(el1, el2);
           dom.appendChild(el0, el1);
@@ -2908,6 +2939,7 @@ define("portal/components/element-reseal-form/template", ["exports"], function (
           var el1 = dom.createTextNode("	");
           dom.appendChild(el0, el1);
           var el1 = dom.createElement("div");
+          dom.setAttribute(el1, "class", "questionText");
           var el2 = dom.createTextNode("Question Text");
           dom.appendChild(el1, el2);
           dom.appendChild(el0, el1);
@@ -3114,6 +3146,7 @@ define("portal/components/element-text/template", ["exports"], function (exports
           var el1 = dom.createTextNode("	");
           dom.appendChild(el0, el1);
           var el1 = dom.createElement("div");
+          dom.setAttribute(el1, "class", "questionText");
           var el2 = dom.createTextNode("Question Text");
           dom.appendChild(el1, el2);
           dom.appendChild(el0, el1);
@@ -3273,6 +3306,7 @@ define("portal/components/element-visual-representations/template", ["exports"],
           var el1 = dom.createTextNode("	");
           dom.appendChild(el0, el1);
           var el1 = dom.createElement("div");
+          dom.setAttribute(el1, "class", "questionText");
           var el2 = dom.createTextNode("Question Text");
           dom.appendChild(el1, el2);
           dom.appendChild(el0, el1);
@@ -4032,46 +4066,26 @@ define('portal/form/route', ['exports', 'ember'], function (exports, _ember) {
         actions: {
             willTransition: function willTransition(transition) {
                 console.log('willTransition form');
-                // this.modelFor('forms').refresh();
-                // App.Form.all().forEach(model) -> model.destroy();
 
                 var isDirty = false;
                 var model = this.currentModel;
                 console.log(model.get('clickedSaving'));
                 if (!model.get('clickedSaving')) {
-
                     model.get('sections').forEach(function (section) {
-
                         section.get('elements').forEach(function (element) {
-                            if (element.get('hasDirtyAttributes') && element.get('dirtyType') === 'updated') {
-                                console.log('element dirty');
+                            // if(element.get('hasDirtyAttributes') && element.get('dirtyType')==='updated'){
+                            if (element.get('hasDirtyAttributes')) {
                                 isDirty = true;
-                                // console.log('-------------Saving Element',element.get('name'));
-                                // console.log('About to save');
-                                // element.save();
                             }
-                            // if(element.get('hasDirtyAttributes') && element.get('dirtyType')==='deleted'){
-                            //     console.log('-------------Saving Element',element.get('name'));
-                            //     console.log('About to save');
-                            //     element.delete();
-                            // }
                         });
 
-                        if (section.get('hasDirtyAttributes') && section.get('dirtyType') === 'updated') {
-                            console.log('section dirty');
+                        if (section.get('hasDirtyAttributes')) {
                             isDirty = true;
-
-                            // console.log('Saving Section',section.get('title'));
-                            // section.save();
                         }
                     });
 
                     if (isDirty) {
-                        console.log('THIs is dirty!');
-                        if (confirm("Do you want to continue without saving your changes", "All data will be list") == true) {
-                            console.log("You pressed OK!");
-                        } else {
-                            console.log("You pressed Cancel!");
+                        if (confirm("Do you want to continue without saving your changes", "All data will be list") == true) {} else {
                             model.set('clickedSaving', false);
                             transition.abort();
                         }
@@ -4081,12 +4095,6 @@ define('portal/form/route', ['exports', 'ember'], function (exports, _ember) {
                 } else {
                     model.set('clickedSaving', false);
                 }
-
-                // let form = this.currentModel;
-                // // if(form.get('hasDirtyAttributes')){
-                // if(form.get('hasDirtyAttributes')){
-                //     console.log("Are you sure you dont want to save?");
-                // }
             }
         }
 
@@ -4479,7 +4487,7 @@ define("portal/form/template", ["exports"], function (exports) {
         var el4 = dom.createTextNode("\n            ");
         dom.appendChild(el3, el4);
         var el4 = dom.createElement("div");
-        dom.setAttribute(el4, "class", "col-md-10");
+        dom.setAttribute(el4, "class", "col-xs-10");
         var el5 = dom.createTextNode("\n                ");
         dom.appendChild(el4, el5);
         var el5 = dom.createElement("h2");
@@ -4487,22 +4495,15 @@ define("portal/form/template", ["exports"], function (exports) {
         var el6 = dom.createComment("");
         dom.appendChild(el5, el6);
         dom.appendChild(el4, el5);
-        var el5 = dom.createTextNode("\n                ");
+        var el5 = dom.createTextNode("\n");
         dom.appendChild(el4, el5);
-        var el5 = dom.createElement("span");
-        dom.setAttribute(el5, "class", "formVersion");
-        var el6 = dom.createTextNode("Version: ");
-        dom.appendChild(el5, el6);
-        var el6 = dom.createComment("");
-        dom.appendChild(el5, el6);
-        dom.appendChild(el4, el5);
-        var el5 = dom.createTextNode("\n            ");
+        var el5 = dom.createTextNode("            ");
         dom.appendChild(el4, el5);
         dom.appendChild(el3, el4);
         var el4 = dom.createTextNode("\n            ");
         dom.appendChild(el3, el4);
         var el4 = dom.createElement("div");
-        dom.setAttribute(el4, "class", "col-md-2");
+        dom.setAttribute(el4, "class", "col-xs-2");
         var el5 = dom.createTextNode("\n                ");
         dom.appendChild(el4, el5);
         var el5 = dom.createElement("button");
@@ -4556,22 +4557,20 @@ define("portal/form/template", ["exports"], function (exports) {
       buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
         var element4 = dom.childAt(fragment, [7]);
         var element5 = dom.childAt(element4, [1, 1]);
-        var element6 = dom.childAt(element5, [1]);
-        var element7 = dom.childAt(element5, [3, 1]);
-        var element8 = dom.childAt(element4, [5]);
-        var element9 = dom.childAt(element8, [3]);
-        var element10 = dom.childAt(element8, [6]);
-        var morphs = new Array(7);
-        morphs[0] = dom.createMorphAt(dom.childAt(element6, [1]), 0, 0);
-        morphs[1] = dom.createMorphAt(dom.childAt(element6, [3]), 1, 1);
-        morphs[2] = dom.createElementMorph(element7);
-        morphs[3] = dom.createMorphAt(element4, 3, 3);
-        morphs[4] = dom.createMorphAt(element8, 1, 1);
+        var element6 = dom.childAt(element5, [3, 1]);
+        var element7 = dom.childAt(element4, [5]);
+        var element8 = dom.childAt(element7, [3]);
+        var element9 = dom.childAt(element7, [6]);
+        var morphs = new Array(6);
+        morphs[0] = dom.createMorphAt(dom.childAt(element5, [1, 1]), 0, 0);
+        morphs[1] = dom.createElementMorph(element6);
+        morphs[2] = dom.createMorphAt(element4, 3, 3);
+        morphs[3] = dom.createMorphAt(element7, 1, 1);
+        morphs[4] = dom.createElementMorph(element8);
         morphs[5] = dom.createElementMorph(element9);
-        morphs[6] = dom.createElementMorph(element10);
         return morphs;
       },
-      statements: [["content", "model.name", ["loc", [null, [7, 37], [7, 51]]]], ["content", "model.revision", ["loc", [null, [8, 51], [8, 69]]]], ["element", "action", ["saveForm"], [], ["loc", [null, [11, 59], [11, 80]]]], ["block", "if", [["get", "model.hasDirtyAttributes", ["loc", [null, [15, 10], [15, 34]]]]], [], 0, null, ["loc", [null, [15, 4], [17, 11]]]], ["block", "each", [["get", "model.sections", ["loc", [null, [19, 16], [19, 30]]]]], [], 1, null, ["loc", [null, [19, 8], [55, 17]]]], ["element", "action", ["addSection"], [], ["loc", [null, [57, 14], [57, 38]]]], ["element", "action", ["addElement"], [], ["loc", [null, [58, 14], [58, 37]]]]],
+      statements: [["content", "model.name", ["loc", [null, [7, 37], [7, 51]]]], ["element", "action", ["saveForm"], [], ["loc", [null, [11, 59], [11, 80]]]], ["block", "if", [["get", "model.hasDirtyAttributes", ["loc", [null, [15, 10], [15, 34]]]]], [], 0, null, ["loc", [null, [15, 4], [17, 11]]]], ["block", "each", [["get", "model.sections", ["loc", [null, [19, 16], [19, 30]]]]], [], 1, null, ["loc", [null, [19, 8], [55, 17]]]], ["element", "action", ["addSection"], [], ["loc", [null, [57, 14], [57, 38]]]], ["element", "action", ["addElement"], [], ["loc", [null, [58, 14], [58, 37]]]]],
       locals: [],
       templates: [child0, child1]
     };
@@ -4662,7 +4661,7 @@ define("portal/forms/template", ["exports"], function (exports) {
               },
               "end": {
                 "line": 9,
-                "column": 129
+                "column": 82
               }
             },
             "moduleName": "portal/forms/template.hbs"
@@ -4675,21 +4674,16 @@ define("portal/forms/template", ["exports"], function (exports) {
             var el0 = dom.createDocumentFragment();
             var el1 = dom.createComment("");
             dom.appendChild(el0, el1);
-            var el1 = dom.createElement("span");
-            dom.setAttribute(el1, "class", "revision");
-            var el2 = dom.createComment("");
-            dom.appendChild(el1, el2);
-            dom.appendChild(el0, el1);
             return el0;
           },
           buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-            var morphs = new Array(2);
+            var morphs = new Array(1);
             morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
-            morphs[1] = dom.createMorphAt(dom.childAt(fragment, [1]), 0, 0);
             dom.insertBoundary(fragment, 0);
+            dom.insertBoundary(fragment, null);
             return morphs;
           },
-          statements: [["content", "form.name", ["loc", [null, [9, 69], [9, 82]]]], ["content", "form.revision", ["loc", [null, [9, 105], [9, 122]]]]],
+          statements: [["content", "form.name", ["loc", [null, [9, 69], [9, 82]]]]],
           locals: [],
           templates: []
         };
@@ -4736,7 +4730,7 @@ define("portal/forms/template", ["exports"], function (exports) {
           morphs[0] = dom.createMorphAt(dom.childAt(fragment, [1]), 1, 1);
           return morphs;
         },
-        statements: [["block", "link-to", ["form", ["get", "form.id", ["loc", [null, [9, 26], [9, 33]]]]], ["class", "list-group-item band-link"], 0, null, ["loc", [null, [9, 8], [9, 141]]]]],
+        statements: [["block", "link-to", ["form", ["get", "form.id", ["loc", [null, [9, 26], [9, 33]]]]], ["class", "list-group-item band-link"], 0, null, ["loc", [null, [9, 8], [9, 94]]]]],
         locals: ["form"],
         templates: [child0]
       };
@@ -6638,7 +6632,7 @@ catch(err) {
 /* jshint ignore:start */
 
 if (!runningTests) {
-  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+94ce8457"});
+  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+a135871b"});
 }
 
 /* jshint ignore:end */
