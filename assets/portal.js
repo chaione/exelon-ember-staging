@@ -3903,8 +3903,27 @@ define('portal/form/controller', ['exports', 'ember'], function (exports, _ember
             deleteElement: function deleteElement(elementId) {
                 var form = this.get('model');
                 var element = this.store.peekRecord('element', elementId);
-                var parentSection = element.get('section');
-                parentSection.get('elements').removeObject(element);
+
+                //because we have a many relationship on elements.. because of duplicates.
+                form.get('sections').forEach(function (section) {
+                    // odel.get('sections').forEach(function(section){
+                    section.get('elements').forEach(function (element) {
+                        var elementId2 = element.get('id');
+                        console.log(elementId + ' vs ' + elementId2);
+                        if (elementId == elementId2) {
+                            console.log('deleted');
+                            section.get('elements').removeObject(element);
+                        }
+                    });
+                });
+
+                // form.get('section').forEach(function(element){
+
+                // }
+
+                // debugger;
+                // let parentSection = element.get('section');
+                // parentSection.get('elements').removeObject(element);
                 element.deleteRecord();
 
                 form.send('becomeDirty');
@@ -3913,6 +3932,7 @@ define('portal/form/controller', ['exports', 'ember'], function (exports, _ember
                 this.set('activeElement', elementClicked);
             },
             saveForm: function saveForm() {
+                var self = this;
                 var model = this.get('model');
                 var formObj = {
                     "id": model.get('id'),
@@ -3962,7 +3982,7 @@ define('portal/form/controller', ['exports', 'ember'], function (exports, _ember
                 model.set('clickedSaving', true);
                 $.ajax({
                     method: "PATCH",
-                    url: "https://exelon-api.herokuapp.com/v1/forms/1",
+                    url: "https://exelon-api.herokuapp.com/v1/forms/" + model.get('id'),
                     data: JSON.stringify(formObj),
                     headers: {
                         "Authorization": "asdf",
@@ -3972,8 +3992,7 @@ define('portal/form/controller', ['exports', 'ember'], function (exports, _ember
                     }
                 }).done(function (msg) {
                     console.log(msg);
-                    sleep(2000);
-                    this.transitionToRoute('forms');
+                    self.transitionToRoute('forms');
                 });
                 // this.get('formsCtrl').send('refreshForms');
             }
@@ -6619,7 +6638,7 @@ catch(err) {
 /* jshint ignore:start */
 
 if (!runningTests) {
-  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+4852c6c0"});
+  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+94ce8457"});
 }
 
 /* jshint ignore:end */
