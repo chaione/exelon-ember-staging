@@ -6127,6 +6127,9 @@ body {
 input {
   color: black; }
 
+.form-control[disabled] {
+  background-color: #466168; }
+
 .form .formHeader {
   background-color: rgba(12, 12, 26, 0.96);
   height: 100px; }
