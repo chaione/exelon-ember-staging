@@ -6125,7 +6125,13 @@ body {
     width: 970px; } }
 
 input {
-  color: black; }
+  color: rgba(12, 12, 26, 0.96); }
+
+textarea {
+  color: rgba(12, 12, 26, 0.96); }
+
+.textarea-fullwidth {
+  width: 100%; }
 
 .form-control[disabled] {
   background-color: #466168; }
