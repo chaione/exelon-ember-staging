@@ -4254,7 +4254,7 @@ define("portal/form/template", ["exports"], function (exports) {
             "column": 0
           },
           "end": {
-            "line": 60,
+            "line": 59,
             "column": 6
           }
         },
@@ -4346,12 +4346,6 @@ define("portal/form/template", ["exports"], function (exports) {
         dom.appendChild(el2, el3);
         var el3 = dom.createElement("br");
         dom.appendChild(el2, el3);
-        var el3 = dom.createTextNode("\n        ");
-        dom.appendChild(el2, el3);
-        var el3 = dom.createElement("span");
-        var el4 = dom.createTextNode("Add Element");
-        dom.appendChild(el3, el4);
-        dom.appendChild(el2, el3);
         var el3 = dom.createTextNode("\n    ");
         dom.appendChild(el2, el3);
         dom.appendChild(el1, el2);
@@ -4366,17 +4360,15 @@ define("portal/form/template", ["exports"], function (exports) {
         var element6 = dom.childAt(element5, [3, 1]);
         var element7 = dom.childAt(element4, [5]);
         var element8 = dom.childAt(element7, [3]);
-        var element9 = dom.childAt(element7, [6]);
-        var morphs = new Array(6);
+        var morphs = new Array(5);
         morphs[0] = dom.createMorphAt(dom.childAt(element5, [1, 1]), 0, 0);
         morphs[1] = dom.createElementMorph(element6);
         morphs[2] = dom.createMorphAt(element4, 3, 3);
         morphs[3] = dom.createMorphAt(element7, 1, 1);
         morphs[4] = dom.createElementMorph(element8);
-        morphs[5] = dom.createElementMorph(element9);
         return morphs;
       },
-      statements: [["content", "model.name", ["loc", [null, [7, 37], [7, 51]]]], ["element", "action", ["saveForm"], [], ["loc", [null, [11, 59], [11, 80]]]], ["block", "if", [["get", "model.hasDirtyAttributes", ["loc", [null, [15, 10], [15, 34]]]]], [], 0, null, ["loc", [null, [15, 4], [17, 11]]]], ["block", "each", [["get", "model.sections", ["loc", [null, [19, 16], [19, 30]]]]], [], 1, null, ["loc", [null, [19, 8], [55, 17]]]], ["element", "action", ["addSection"], [], ["loc", [null, [57, 14], [57, 38]]]], ["element", "action", ["addElement"], [], ["loc", [null, [58, 14], [58, 37]]]]],
+      statements: [["content", "model.name", ["loc", [null, [7, 37], [7, 51]]]], ["element", "action", ["saveForm"], [], ["loc", [null, [11, 59], [11, 80]]]], ["block", "if", [["get", "model.hasDirtyAttributes", ["loc", [null, [15, 10], [15, 34]]]]], [], 0, null, ["loc", [null, [15, 4], [17, 11]]]], ["block", "each", [["get", "model.sections", ["loc", [null, [19, 16], [19, 30]]]]], [], 1, null, ["loc", [null, [19, 8], [55, 17]]]], ["element", "action", ["addSection"], [], ["loc", [null, [57, 14], [57, 38]]]]],
       locals: [],
       templates: [child0, child1]
     };
@@ -6438,7 +6430,7 @@ catch(err) {
 /* jshint ignore:start */
 
 if (!runningTests) {
-  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+a7acf9e4"});
+  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+8d217eb0"});
 }
 
 /* jshint ignore:end */
