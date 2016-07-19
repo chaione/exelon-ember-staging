@@ -328,7 +328,7 @@ define('portal/tests/form/controller.jshint', ['exports'], function (exports) {
   QUnit.module('JSHint - form/controller.js');
   QUnit.test('should pass jshint', function (assert) {
     assert.expect(1);
-    assert.ok(false, 'form/controller.js should pass jshint.\nform/controller.js: line 11, col 69, Missing semicolon.\nform/controller.js: line 12, col 17, \'newElement\' is defined but never used.\nform/controller.js: line 28, col 17, \'form\' is defined but never used.\nform/controller.js: line 29, col 17, \'lastSection\' is defined but never used.\nform/controller.js: line 38, col 17, \'newSection\' is defined but never used.\nform/controller.js: line 45, col 76, Expected \'===\' and instead saw \'==\'.\nform/controller.js: line 56, col 76, Expected \'===\' and instead saw \'==\'.\nform/controller.js: line 65, col 40, Expected \'===\' and instead saw \'==\'.\nform/controller.js: line 96, col 32, Missing semicolon.\nform/controller.js: line 97, col 32, Missing semicolon.\nform/controller.js: line 137, col 44, Missing semicolon.\nform/controller.js: line 138, col 13, \'$\' is not defined.\n\n12 errors');
+    assert.ok(false, 'form/controller.js should pass jshint.\nform/controller.js: line 12, col 69, Missing semicolon.\nform/controller.js: line 13, col 17, \'newElement\' is defined but never used.\nform/controller.js: line 30, col 17, \'form\' is defined but never used.\nform/controller.js: line 31, col 17, \'lastSection\' is defined but never used.\nform/controller.js: line 40, col 17, \'newSection\' is defined but never used.\nform/controller.js: line 51, col 76, Expected \'===\' and instead saw \'==\'.\nform/controller.js: line 62, col 76, Expected \'===\' and instead saw \'==\'.\nform/controller.js: line 71, col 40, Expected \'===\' and instead saw \'==\'.\nform/controller.js: line 102, col 32, Missing semicolon.\nform/controller.js: line 103, col 32, Missing semicolon.\nform/controller.js: line 143, col 44, Missing semicolon.\nform/controller.js: line 144, col 13, \'$\' is not defined.\n\n12 errors');
   });
 });
 define('portal/tests/form/model.jshint', ['exports'], function (exports) {
@@ -346,7 +346,7 @@ define('portal/tests/form/route.jshint', ['exports'], function (exports) {
   QUnit.module('JSHint - form/route.js');
   QUnit.test('should pass jshint', function (assert) {
     assert.expect(1);
-    assert.ok(false, 'form/route.js should pass jshint.\nform/route.js: line 29, col 42, Missing semicolon.\nform/route.js: line 48, col 116, Expected \'===\' and instead saw \'==\'.\nform/route.js: line 50, col 59, Missing semicolon.\nform/route.js: line 58, col 49, Missing semicolon.\n\n4 errors');
+    assert.ok(false, 'form/route.js should pass jshint.\nform/route.js: line 32, col 42, Missing semicolon.\nform/route.js: line 54, col 146, Expected \'===\' and instead saw \'==\'.\nform/route.js: line 56, col 59, Missing semicolon.\nform/route.js: line 64, col 49, Missing semicolon.\n\n4 errors');
   });
 });
 define('portal/tests/forms/controller.jshint', ['exports'], function (exports) {
