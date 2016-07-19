@@ -1512,10 +1512,10 @@ define('portal/components/element-parent/component', ['exports', 'ember'], funct
             this.set('currentKey', this.get('formElement').get('key'));
 
             var typeLookup = types.reduce(function (o, item, index) {
-                o[item.value] = index;
+                o[item.value.toLowerCase()] = index;
                 return o;
             }, {});
-            var element = typeLookup[this.get('formElement.element_type')];
+            var element = typeLookup[this.get('formElement.element_type').toLowerCase()];
             var elementType = types[element];
 
             this.set('currentType', elementType);
@@ -4643,6 +4643,7 @@ define('portal/element-type/model', ['exports', 'ember-data/model'], function (e
 define('portal/form/controller', ['exports', 'ember', 'portal/config/environment'], function (exports, _ember, _portalConfigEnvironment) {
     exports['default'] = _ember['default'].Controller.extend({
         formsCtrl: _ember['default'].inject.controller('forms'),
+        session: _ember['default'].inject.service('custom-session'),
         // activeElement
         clickedSaving: false,
         unsavedChanges: false,
@@ -4777,7 +4778,7 @@ define('portal/form/controller', ['exports', 'ember', 'portal/config/environment
                     url: _portalConfigEnvironment['default'].host + "/" + _portalConfigEnvironment['default'].namespace + "/forms/" + model.get('id'),
                     data: JSON.stringify(formObj),
                     headers: {
-                        "Authorization": "asdf",
+                        "Authorization": this.get("session.token"),
                         "X-SITE-ID": "1",
                         "Accept": "application/json",
                         "Content-Type": "application/json"
@@ -7389,7 +7390,7 @@ catch(err) {
 /* jshint ignore:start */
 
 if (!runningTests) {
-  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+d01e1920"});
+  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+83665dfb"});
 }
 
 /* jshint ignore:end */
