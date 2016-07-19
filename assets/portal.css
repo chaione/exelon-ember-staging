@@ -6147,6 +6147,8 @@ textarea {
 .formContent {
   margin-top: 50px;
   padding: 0px; }
+  .formContent .element-bottom {
+    background-color: #151B23; }
   .formContent .section-bottom {
     background-color: #1b2430;
     padding: 10px; }

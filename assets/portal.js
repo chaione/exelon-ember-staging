@@ -4648,32 +4648,20 @@ define('portal/form/controller', ['exports', 'ember', 'portal/config/environment
         clickedSaving: false,
         unsavedChanges: false,
         actions: {
-            addElement: function addElement() {
-                var form = this.get('model');
-                var lastSection = form.get('sections').get('lastObject');
-                var newElement = this.store.createRecord('element', {
-                    name: "blah",
-                    element_type: 'text',
-                    // key:DS.attr('string'),
-                    // disabled:DS.attr('string'),
-                    // hidden:DS.attr('string'),
-                    // placeholder:DS.attr('string'),
-                    // required:DS.attr('string'),
-                    // needs_validation:DS.attr('string'),
-                    // capitalization_type:DS.attr('string'),
-                    // keyboard_type:DS.attr('string'),
-                    // section: DS.belongsTo('section')
-                    section: lastSection
-                });
-                this.send('becomeDirty');
-            },
             addElementToSection: function addElementToSection(section) {
+                this.send('becomeDirty');
                 var form = this.get('model');
                 var lastSection = section;
                 var newElement = this.store.createRecord('element', {
                     element_type: 'text'
                 });
                 section.get('elements').addObject(newElement);
+            },
+            addElementAfterElement: function addElementAfterElement(section, element, index) {
+                var newElement = this.store.createRecord('element', {
+                    element_type: 'text'
+                });
+                section.get('elements').insertAt(index + 1, newElement);
             },
             addSection: function addSection() {
                 var form = this.get('model');
@@ -4685,7 +4673,6 @@ define('portal/form/controller', ['exports', 'ember', 'portal/config/environment
                 this.becomeDirty();
             },
             becomeDirty: function becomeDirty() {
-                console.log('becomedirty32423423423423423423423423424');
                 this.set('unsavedChanges', true);
             },
             deleteSection: function deleteSection(section) {
@@ -4919,7 +4906,7 @@ define("portal/form/template", ["exports"], function (exports) {
                       "column": 28
                     },
                     "end": {
-                      "line": 35,
+                      "line": 38,
                       "column": 28
                     }
                   },
@@ -4935,16 +4922,35 @@ define("portal/form/template", ["exports"], function (exports) {
                   dom.appendChild(el0, el1);
                   var el1 = dom.createComment("");
                   dom.appendChild(el0, el1);
+                  var el1 = dom.createTextNode("\n                                ");
+                  dom.appendChild(el0, el1);
+                  var el1 = dom.createElement("div");
+                  dom.setAttribute(el1, "class", "element-bottom");
+                  var el2 = dom.createTextNode("\n                                    ");
+                  dom.appendChild(el1, el2);
+                  var el2 = dom.createElement("span");
+                  dom.setAttribute(el2, "class", "glyphicon glyphicon-plus-sign");
+                  dom.setAttribute(el2, "aria-hidden", "true");
+                  dom.appendChild(el1, el2);
+                  var el2 = dom.createElement("span");
+                  var el3 = dom.createTextNode("Add Element");
+                  dom.appendChild(el2, el3);
+                  dom.appendChild(el1, el2);
+                  var el2 = dom.createTextNode("                                \n                                ");
+                  dom.appendChild(el1, el2);
+                  dom.appendChild(el0, el1);
                   var el1 = dom.createTextNode("\n");
                   dom.appendChild(el0, el1);
                   return el0;
                 },
                 buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-                  var morphs = new Array(1);
+                  var element0 = dom.childAt(fragment, [3, 2]);
+                  var morphs = new Array(2);
                   morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
+                  morphs[1] = dom.createElementMorph(element0);
                   return morphs;
                 },
-                statements: [["inline", "element-parent", [], ["formElement", ["subexpr", "@mut", [["get", "element", ["loc", [null, [30, 48], [30, 55]]]]], [], []], "isActive", true, "keyDS", ["subexpr", "@mut", [["get", "keyDS", ["loc", [null, [32, 42], [32, 47]]]]], [], []], "onElementClick", ["subexpr", "action", ["userDidClickElement", ["get", "element", ["loc", [null, [33, 81], [33, 88]]]]], [], ["loc", [null, [33, 51], [33, 89]]]], "deleteElement", "deleteElement"], ["loc", [null, [29, 32], [34, 67]]]]],
+                statements: [["inline", "element-parent", [], ["formElement", ["subexpr", "@mut", [["get", "element", ["loc", [null, [30, 48], [30, 55]]]]], [], []], "isActive", true, "keyDS", ["subexpr", "@mut", [["get", "keyDS", ["loc", [null, [32, 42], [32, 47]]]]], [], []], "onElementClick", ["subexpr", "action", ["userDidClickElement", ["get", "element", ["loc", [null, [33, 81], [33, 88]]]]], [], ["loc", [null, [33, 51], [33, 89]]]], "deleteElement", "deleteElement"], ["loc", [null, [29, 32], [34, 67]]]], ["element", "action", ["addElementAfterElement", ["get", "section", ["loc", [null, [36, 146], [36, 153]]]], ["get", "element", ["loc", [null, [36, 154], [36, 161]]]], ["get", "index", ["loc", [null, [36, 162], [36, 167]]]]], [], ["loc", [null, [36, 112], [36, 169]]]]],
                 locals: [],
                 templates: []
               };
@@ -4957,11 +4963,11 @@ define("portal/form/template", ["exports"], function (exports) {
                   "loc": {
                     "source": null,
                     "start": {
-                      "line": 35,
+                      "line": 38,
                       "column": 28
                     },
                     "end": {
-                      "line": 42,
+                      "line": 45,
                       "column": 28
                     }
                   },
@@ -4986,7 +4992,7 @@ define("portal/form/template", ["exports"], function (exports) {
                   morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
                   return morphs;
                 },
-                statements: [["inline", "element-parent", [], ["formElement", ["subexpr", "@mut", [["get", "element", ["loc", [null, [37, 48], [37, 55]]]]], [], []], "isActive", false, "keyDS", ["subexpr", "@mut", [["get", "keyDS", ["loc", [null, [39, 42], [39, 47]]]]], [], []], "onElementClick", ["subexpr", "action", ["userDidClickElement", ["get", "element", ["loc", [null, [40, 81], [40, 88]]]]], [], ["loc", [null, [40, 51], [40, 89]]]], "deleteElement", "deleteElement"], ["loc", [null, [36, 32], [41, 67]]]]],
+                statements: [["inline", "element-parent", [], ["formElement", ["subexpr", "@mut", [["get", "element", ["loc", [null, [40, 48], [40, 55]]]]], [], []], "isActive", false, "keyDS", ["subexpr", "@mut", [["get", "keyDS", ["loc", [null, [42, 42], [42, 47]]]]], [], []], "onElementClick", ["subexpr", "action", ["userDidClickElement", ["get", "element", ["loc", [null, [43, 81], [43, 88]]]]], [], ["loc", [null, [43, 51], [43, 89]]]], "deleteElement", "deleteElement"], ["loc", [null, [39, 32], [44, 67]]]]],
                 locals: [],
                 templates: []
               };
@@ -5002,7 +5008,7 @@ define("portal/form/template", ["exports"], function (exports) {
                     "column": 24
                   },
                   "end": {
-                    "line": 43,
+                    "line": 47,
                     "column": 24
                   }
                 },
@@ -5016,16 +5022,17 @@ define("portal/form/template", ["exports"], function (exports) {
                 var el0 = dom.createDocumentFragment();
                 var el1 = dom.createComment("");
                 dom.appendChild(el0, el1);
+                var el1 = dom.createTextNode("\n");
+                dom.appendChild(el0, el1);
                 return el0;
               },
               buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
                 var morphs = new Array(1);
                 morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
                 dom.insertBoundary(fragment, 0);
-                dom.insertBoundary(fragment, null);
                 return morphs;
               },
-              statements: [["block", "if", [["subexpr", "eq", [["get", "element", ["loc", [null, [28, 38], [28, 45]]]], ["get", "activeElement", ["loc", [null, [28, 46], [28, 59]]]]], [], ["loc", [null, [28, 34], [28, 60]]]]], [], 0, 1, ["loc", [null, [28, 28], [42, 35]]]]],
+              statements: [["block", "if", [["subexpr", "eq", [["get", "element", ["loc", [null, [28, 38], [28, 45]]]], ["get", "activeElement", ["loc", [null, [28, 46], [28, 59]]]]], [], ["loc", [null, [28, 34], [28, 60]]]]], [], 0, 1, ["loc", [null, [28, 28], [45, 35]]]]],
               locals: [],
               templates: [child0, child1]
             };
@@ -5041,19 +5048,21 @@ define("portal/form/template", ["exports"], function (exports) {
                   "column": 20
                 },
                 "end": {
-                  "line": 44,
+                  "line": 49,
                   "column": 20
                 }
               },
               "moduleName": "portal/form/template.hbs"
             },
             isEmpty: false,
-            arity: 1,
+            arity: 2,
             cachedFragment: null,
             hasRendered: false,
             buildFragment: function buildFragment(dom) {
               var el0 = dom.createDocumentFragment();
               var el1 = dom.createComment("");
+              dom.appendChild(el0, el1);
+              var el1 = dom.createTextNode("\n");
               dom.appendChild(el0, el1);
               return el0;
             },
@@ -5061,11 +5070,10 @@ define("portal/form/template", ["exports"], function (exports) {
               var morphs = new Array(1);
               morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
               dom.insertBoundary(fragment, 0);
-              dom.insertBoundary(fragment, null);
               return morphs;
             },
-            statements: [["block", "unless", [["get", "element.isDeleted", ["loc", [null, [27, 34], [27, 51]]]]], [], 0, null, ["loc", [null, [27, 24], [43, 35]]]]],
-            locals: ["element"],
+            statements: [["block", "unless", [["get", "element.isDeleted", ["loc", [null, [27, 34], [27, 51]]]]], [], 0, null, ["loc", [null, [27, 24], [47, 35]]]]],
+            locals: ["element", "index"],
             templates: [child0]
           };
         })();
@@ -5080,7 +5088,7 @@ define("portal/form/template", ["exports"], function (exports) {
                 "column": 12
               },
               "end": {
-                "line": 54,
+                "line": 59,
                 "column": 12
               }
             },
@@ -5144,18 +5152,18 @@ define("portal/form/template", ["exports"], function (exports) {
             return el0;
           },
           buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-            var element0 = dom.childAt(fragment, [1]);
-            var element1 = dom.childAt(element0, [1]);
-            var element2 = dom.childAt(element1, [3]);
-            var element3 = dom.childAt(element0, [5, 2]);
+            var element1 = dom.childAt(fragment, [1]);
+            var element2 = dom.childAt(element1, [1]);
+            var element3 = dom.childAt(element2, [3]);
+            var element4 = dom.childAt(element1, [5, 2]);
             var morphs = new Array(4);
-            morphs[0] = dom.createMorphAt(element1, 1, 1);
-            morphs[1] = dom.createElementMorph(element2);
-            morphs[2] = dom.createMorphAt(element0, 3, 3);
-            morphs[3] = dom.createElementMorph(element3);
+            morphs[0] = dom.createMorphAt(element2, 1, 1);
+            morphs[1] = dom.createElementMorph(element3);
+            morphs[2] = dom.createMorphAt(element1, 3, 3);
+            morphs[3] = dom.createElementMorph(element4);
             return morphs;
           },
-          statements: [["inline", "input", [], ["class", "section-title", "type", "text", "value", ["subexpr", "@mut", [["get", "section.title", ["loc", [null, [23, 72], [23, 85]]]]], [], []], "placeholder", "Section Title"], ["loc", [null, [23, 24], [23, 115]]]], ["element", "action", ["deleteSection", ["get", "section", ["loc", [null, [24, 116], [24, 123]]]]], [], ["loc", [null, [24, 91], [24, 125]]]], ["block", "each", [["get", "section.elements", ["loc", [null, [26, 28], [26, 44]]]]], [], 0, null, ["loc", [null, [26, 20], [44, 29]]]], ["element", "action", ["addElementToSection", ["get", "section", ["loc", [null, [48, 131], [48, 138]]]]], [], ["loc", [null, [48, 100], [48, 140]]]]],
+          statements: [["inline", "input", [], ["class", "section-title", "type", "text", "value", ["subexpr", "@mut", [["get", "section.title", ["loc", [null, [23, 72], [23, 85]]]]], [], []], "placeholder", "Section Title"], ["loc", [null, [23, 24], [23, 115]]]], ["element", "action", ["deleteSection", ["get", "section", ["loc", [null, [24, 116], [24, 123]]]]], [], ["loc", [null, [24, 91], [24, 125]]]], ["block", "each", [["get", "section.elements", ["loc", [null, [26, 28], [26, 44]]]]], [], 0, null, ["loc", [null, [26, 20], [49, 29]]]], ["element", "action", ["addElementToSection", ["get", "section", ["loc", [null, [53, 131], [53, 138]]]]], [], ["loc", [null, [53, 100], [53, 140]]]]],
           locals: [],
           templates: [child0]
         };
@@ -5171,7 +5179,7 @@ define("portal/form/template", ["exports"], function (exports) {
               "column": 8
             },
             "end": {
-              "line": 55,
+              "line": 60,
               "column": 8
             }
           },
@@ -5194,7 +5202,7 @@ define("portal/form/template", ["exports"], function (exports) {
           dom.insertBoundary(fragment, null);
           return morphs;
         },
-        statements: [["block", "unless", [["get", "section.isDeleted", ["loc", [null, [20, 22], [20, 39]]]]], [], 0, null, ["loc", [null, [20, 12], [54, 23]]]]],
+        statements: [["block", "unless", [["get", "section.isDeleted", ["loc", [null, [20, 22], [20, 39]]]]], [], 0, null, ["loc", [null, [20, 12], [59, 23]]]]],
         locals: ["section"],
         templates: [child0]
       };
@@ -5213,7 +5221,7 @@ define("portal/form/template", ["exports"], function (exports) {
             "column": 0
           },
           "end": {
-            "line": 59,
+            "line": 64,
             "column": 6
           }
         },
@@ -5314,20 +5322,20 @@ define("portal/form/template", ["exports"], function (exports) {
         return el0;
       },
       buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-        var element4 = dom.childAt(fragment, [7]);
-        var element5 = dom.childAt(element4, [1, 1]);
-        var element6 = dom.childAt(element5, [3, 1]);
-        var element7 = dom.childAt(element4, [5]);
-        var element8 = dom.childAt(element7, [3]);
+        var element5 = dom.childAt(fragment, [7]);
+        var element6 = dom.childAt(element5, [1, 1]);
+        var element7 = dom.childAt(element6, [3, 1]);
+        var element8 = dom.childAt(element5, [5]);
+        var element9 = dom.childAt(element8, [3]);
         var morphs = new Array(5);
-        morphs[0] = dom.createMorphAt(dom.childAt(element5, [1, 1]), 0, 0);
-        morphs[1] = dom.createElementMorph(element6);
-        morphs[2] = dom.createMorphAt(element4, 3, 3);
-        morphs[3] = dom.createMorphAt(element7, 1, 1);
-        morphs[4] = dom.createElementMorph(element8);
+        morphs[0] = dom.createMorphAt(dom.childAt(element6, [1, 1]), 0, 0);
+        morphs[1] = dom.createElementMorph(element7);
+        morphs[2] = dom.createMorphAt(element5, 3, 3);
+        morphs[3] = dom.createMorphAt(element8, 1, 1);
+        morphs[4] = dom.createElementMorph(element9);
         return morphs;
       },
-      statements: [["content", "model.name", ["loc", [null, [7, 37], [7, 51]]]], ["element", "action", ["saveForm"], [], ["loc", [null, [11, 59], [11, 80]]]], ["block", "if", [["get", "model.hasDirtyAttributes", ["loc", [null, [15, 10], [15, 34]]]]], [], 0, null, ["loc", [null, [15, 4], [17, 11]]]], ["block", "each", [["get", "model.sections", ["loc", [null, [19, 16], [19, 30]]]]], [], 1, null, ["loc", [null, [19, 8], [55, 17]]]], ["element", "action", ["addSection"], [], ["loc", [null, [57, 14], [57, 38]]]]],
+      statements: [["content", "model.name", ["loc", [null, [7, 37], [7, 51]]]], ["element", "action", ["saveForm"], [], ["loc", [null, [11, 59], [11, 80]]]], ["block", "if", [["get", "model.hasDirtyAttributes", ["loc", [null, [15, 10], [15, 34]]]]], [], 0, null, ["loc", [null, [15, 4], [17, 11]]]], ["block", "each", [["get", "model.sections", ["loc", [null, [19, 16], [19, 30]]]]], [], 1, null, ["loc", [null, [19, 8], [60, 17]]]], ["element", "action", ["addSection"], [], ["loc", [null, [62, 14], [62, 38]]]]],
       locals: [],
       templates: [child0, child1]
     };
@@ -7390,7 +7398,7 @@ catch(err) {
 /* jshint ignore:start */
 
 if (!runningTests) {
-  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+83665dfb"});
+  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+52c5bdb0"});
 }
 
 /* jshint ignore:end */
