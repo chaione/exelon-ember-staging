@@ -22,14 +22,14 @@ define('portal/app', ['exports', 'ember', 'portal/resolver', 'ember-load-initial
 
   exports['default'] = App;
 });
-define('portal/application/adapter', ['exports', 'ember-data/adapters/json-api', 'portal/config/environment'], function (exports, _emberDataAdaptersJsonApi, _portalConfigEnvironment) {
+define('portal/application/adapter', ['exports', 'ember', 'ember-data/adapters/json-api', 'portal/config/environment'], function (exports, _ember, _emberDataAdaptersJsonApi, _portalConfigEnvironment) {
    exports['default'] = _emberDataAdaptersJsonApi['default'].extend({
-      session: Ember.inject.service('custom-session'),
+      session: _ember['default'].inject.service('custom-session'),
       // host: 'https://36c2b03f.ngrok.io',
       host: _portalConfigEnvironment['default'].host,
       // headers: ENV.headers,
       namespace: _portalConfigEnvironment['default'].namespace,
-      headers: Ember.computed('session.token', function () {
+      headers: _ember['default'].computed('session.token', function () {
          return {
             "Authorization": this.get("session.token"),
             "X-SITE-ID": "1",
@@ -557,7 +557,7 @@ define("portal/components/element-checklist-item/template", ["exports"], functio
               "column": 0
             },
             "end": {
-              "line": 9,
+              "line": 8,
               "column": 0
             }
           },
@@ -579,21 +579,16 @@ define("portal/components/element-checklist-item/template", ["exports"], functio
           var el2 = dom.createTextNode("\n	");
           dom.appendChild(el1, el2);
           dom.appendChild(el0, el1);
-          var el1 = dom.createTextNode("\n    ");
-          dom.appendChild(el0, el1);
-          var el1 = dom.createComment("");
-          dom.appendChild(el0, el1);
           var el1 = dom.createTextNode("\n");
           dom.appendChild(el0, el1);
           return el0;
         },
         buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-          var morphs = new Array(2);
+          var morphs = new Array(1);
           morphs[0] = dom.createMorphAt(dom.childAt(fragment, [1]), 1, 1);
-          morphs[1] = dom.createMorphAt(fragment, 3, 3, contextualElement);
           return morphs;
         },
-        statements: [["content", "input.name", ["loc", [null, [6, 2], [6, 16]]]], ["inline", "input", [], ["class", "form-control", "type", "text", "disabled", true, "value", ["subexpr", "@mut", [["get", "input.placeholder", ["loc", [null, [8, 65], [8, 82]]]]], [], []]], ["loc", [null, [8, 4], [8, 84]]]]],
+        statements: [["content", "input.name", ["loc", [null, [6, 2], [6, 16]]]]],
         locals: [],
         templates: []
       };
@@ -612,7 +607,7 @@ define("portal/components/element-checklist-item/template", ["exports"], functio
             "column": 0
           },
           "end": {
-            "line": 9,
+            "line": 8,
             "column": 7
           }
         },
@@ -635,7 +630,7 @@ define("portal/components/element-checklist-item/template", ["exports"], functio
         dom.insertBoundary(fragment, null);
         return morphs;
       },
-      statements: [["block", "if", [["get", "isActive", ["loc", [null, [1, 6], [1, 14]]]]], [], 0, 1, ["loc", [null, [1, 0], [9, 7]]]]],
+      statements: [["block", "if", [["get", "isActive", ["loc", [null, [1, 6], [1, 14]]]]], [], 0, 1, ["loc", [null, [1, 0], [8, 7]]]]],
       locals: [],
       templates: [child0, child1]
     };
@@ -1476,7 +1471,7 @@ define("portal/components/element-null/template", ["exports"], function (exports
 define('portal/components/element-parent/component', ['exports', 'ember'], function (exports, _ember) {
     var types = [{ name: 'Text', icon: 'icn-input@2x', value: 'text' }, { name: 'Reseal Form', icon: 'icn-form@2x', value: 'reseal_form' }, { name: 'Picture', icon: 'icn-pic@2x', value: 'visual_representations' }, { name: 'Date', icon: 'icn-date-toggle@2x', value: 'date' }, { name: 'Date View Only', icon: 'icn-date@2x', value: 'date-viewonly' },
     // {name:'Dropdown',icon:'icn-dropdown@2x',value:'dropdown'},
-    { name: 'Qualified', icon: 'icn-qualified@2x', value: 'qualified' }, { name: 'CheckList Item', icon: 'icn-checklist@2x', value: 'checklist-item' }, { name: 'Search Procedure', icon: 'icn-instructions@2x', value: 'label' }, { name: 'Driver License', icon: 'icn-instructions@2x', value: 'ScannerDriverLicense' }, { name: 'License Plate', icon: 'icn-instructions@2x', value: 'ScannerLicensePlate' }, { name: 'Phone', icon: 'icn-instructions@2x', value: 'Phone' }, { name: 'Radial Buttons', icon: 'icn-instructions@2x', value: 'RadialButtons' }];
+    { name: 'Qualified', icon: 'icn-qualified@2x', value: 'qualified' }, { name: 'CheckList Item', icon: 'icn-checklist@2x', value: 'checklist-item' }, { name: 'Search Procedure', icon: 'icn-instructions@2x', value: 'label' }, { name: 'Driver License Scan', icon: 'icn-dlscanner@2x', value: 'scannerdriverlicense' }, { name: 'License Plate Scan', icon: 'icn-lpscanner@2x', value: 'scannerlicenseplate' }, { name: 'Phone', icon: 'icn-phone@2x', value: 'phone' }, { name: 'Radial Buttons', icon: 'icn-radial@2x', value: 'radialbuttons' }];
 
     // text  - ? place holder input, anything else?
     // dropdown - ?how do we save their different options
@@ -1888,11 +1883,11 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           "loc": {
             "source": null,
             "start": {
-              "line": 58,
+              "line": 59,
               "column": 0
             },
             "end": {
-              "line": 60,
+              "line": 61,
               "column": 0
             }
           },
@@ -1917,7 +1912,7 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
           return morphs;
         },
-        statements: [["inline", "element-text", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [59, 25], [59, 36]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [59, 46], [59, 54]]]]], [], []]], ["loc", [null, [59, 4], [59, 56]]]]],
+        statements: [["inline", "element-text", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [60, 25], [60, 36]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [60, 46], [60, 54]]]]], [], []]], ["loc", [null, [60, 4], [60, 56]]]]],
         locals: [],
         templates: []
       };
@@ -1930,11 +1925,11 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           "loc": {
             "source": null,
             "start": {
-              "line": 61,
+              "line": 62,
               "column": 0
             },
             "end": {
-              "line": 63,
+              "line": 64,
               "column": 0
             }
           },
@@ -1959,7 +1954,7 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
           return morphs;
         },
-        statements: [["inline", "element-text", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [62, 25], [62, 36]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [62, 46], [62, 54]]]]], [], []]], ["loc", [null, [62, 4], [62, 56]]]]],
+        statements: [["inline", "element-date", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [63, 25], [63, 36]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [63, 46], [63, 54]]]]], [], []]], ["loc", [null, [63, 4], [63, 56]]]]],
         locals: [],
         templates: []
       };
@@ -1972,11 +1967,11 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           "loc": {
             "source": null,
             "start": {
-              "line": 64,
+              "line": 65,
               "column": 0
             },
             "end": {
-              "line": 66,
+              "line": 67,
               "column": 0
             }
           },
@@ -2001,7 +1996,7 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
           return morphs;
         },
-        statements: [["inline", "element-date", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [65, 25], [65, 36]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [65, 46], [65, 54]]]]], [], []]], ["loc", [null, [65, 4], [65, 56]]]]],
+        statements: [["inline", "element-date-viewonly", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [66, 34], [66, 45]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [66, 55], [66, 63]]]]], [], []]], ["loc", [null, [66, 4], [66, 65]]]]],
         locals: [],
         templates: []
       };
@@ -2014,11 +2009,11 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           "loc": {
             "source": null,
             "start": {
-              "line": 67,
+              "line": 68,
               "column": 0
             },
             "end": {
-              "line": 69,
+              "line": 70,
               "column": 0
             }
           },
@@ -2043,7 +2038,7 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
           return morphs;
         },
-        statements: [["inline", "element-date", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [68, 25], [68, 36]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [68, 46], [68, 54]]]]], [], []]], ["loc", [null, [68, 4], [68, 56]]]]],
+        statements: [["inline", "element-dropdown", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [69, 29], [69, 40]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [69, 50], [69, 58]]]]], [], []]], ["loc", [null, [69, 4], [69, 60]]]]],
         locals: [],
         templates: []
       };
@@ -2056,11 +2051,11 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           "loc": {
             "source": null,
             "start": {
-              "line": 70,
+              "line": 71,
               "column": 0
             },
             "end": {
-              "line": 72,
+              "line": 73,
               "column": 0
             }
           },
@@ -2085,7 +2080,7 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
           return morphs;
         },
-        statements: [["inline", "element-date-viewonly", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [71, 34], [71, 45]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [71, 55], [71, 63]]]]], [], []]], ["loc", [null, [71, 4], [71, 65]]]]],
+        statements: [["inline", "element-visual-representations", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [72, 43], [72, 54]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [72, 64], [72, 72]]]]], [], []]], ["loc", [null, [72, 4], [72, 74]]]]],
         locals: [],
         templates: []
       };
@@ -2098,11 +2093,11 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           "loc": {
             "source": null,
             "start": {
-              "line": 73,
+              "line": 74,
               "column": 0
             },
             "end": {
-              "line": 75,
+              "line": 76,
               "column": 0
             }
           },
@@ -2127,7 +2122,7 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
           return morphs;
         },
-        statements: [["inline", "element-dropdown", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [74, 29], [74, 40]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [74, 50], [74, 58]]]]], [], []]], ["loc", [null, [74, 4], [74, 60]]]]],
+        statements: [["inline", "element-reseal-form", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [75, 32], [75, 43]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [75, 53], [75, 61]]]]], [], []]], ["loc", [null, [75, 4], [75, 63]]]]],
         locals: [],
         templates: []
       };
@@ -2140,11 +2135,11 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           "loc": {
             "source": null,
             "start": {
-              "line": 76,
+              "line": 77,
               "column": 0
             },
             "end": {
-              "line": 78,
+              "line": 79,
               "column": 0
             }
           },
@@ -2169,7 +2164,7 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
           return morphs;
         },
-        statements: [["inline", "element-dropdown", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [77, 29], [77, 40]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [77, 50], [77, 58]]]]], [], []]], ["loc", [null, [77, 4], [77, 60]]]]],
+        statements: [["inline", "element-qualified", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [78, 30], [78, 41]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [78, 51], [78, 59]]]]], [], []]], ["loc", [null, [78, 4], [78, 61]]]]],
         locals: [],
         templates: []
       };
@@ -2182,11 +2177,11 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           "loc": {
             "source": null,
             "start": {
-              "line": 79,
+              "line": 80,
               "column": 0
             },
             "end": {
-              "line": 81,
+              "line": 82,
               "column": 0
             }
           },
@@ -2211,7 +2206,7 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
           return morphs;
         },
-        statements: [["inline", "element-visual-representations", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [80, 43], [80, 54]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [80, 64], [80, 72]]]]], [], []]], ["loc", [null, [80, 4], [80, 74]]]]],
+        statements: [["inline", "element-search-step", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [81, 32], [81, 43]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [81, 53], [81, 61]]]]], [], []]], ["loc", [null, [81, 4], [81, 63]]]]],
         locals: [],
         templates: []
       };
@@ -2224,11 +2219,11 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           "loc": {
             "source": null,
             "start": {
-              "line": 82,
+              "line": 83,
               "column": 0
             },
             "end": {
-              "line": 84,
+              "line": 85,
               "column": 0
             }
           },
@@ -2253,7 +2248,7 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
           return morphs;
         },
-        statements: [["inline", "element-reseal-form", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [83, 32], [83, 43]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [83, 53], [83, 61]]]]], [], []]], ["loc", [null, [83, 4], [83, 63]]]]],
+        statements: [["inline", "element-null", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [84, 25], [84, 36]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [84, 46], [84, 54]]]]], [], []]], ["loc", [null, [84, 4], [84, 56]]]]],
         locals: [],
         templates: []
       };
@@ -2266,11 +2261,11 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           "loc": {
             "source": null,
             "start": {
-              "line": 85,
+              "line": 86,
               "column": 0
             },
             "end": {
-              "line": 87,
+              "line": 88,
               "column": 0
             }
           },
@@ -2295,7 +2290,7 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
           return morphs;
         },
-        statements: [["inline", "element-qualified", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [86, 30], [86, 41]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [86, 51], [86, 59]]]]], [], []]], ["loc", [null, [86, 4], [86, 61]]]]],
+        statements: [["inline", "element-checklist-item", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [87, 35], [87, 46]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [87, 56], [87, 64]]]]], [], []]], ["loc", [null, [87, 4], [87, 66]]]]],
         locals: [],
         templates: []
       };
@@ -2308,11 +2303,11 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           "loc": {
             "source": null,
             "start": {
-              "line": 88,
+              "line": 89,
               "column": 0
             },
             "end": {
-              "line": 90,
+              "line": 91,
               "column": 0
             }
           },
@@ -2337,7 +2332,7 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
           return morphs;
         },
-        statements: [["inline", "element-search-step", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [89, 32], [89, 43]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [89, 53], [89, 61]]]]], [], []]], ["loc", [null, [89, 4], [89, 63]]]]],
+        statements: [["inline", "element-label", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [90, 26], [90, 37]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [90, 47], [90, 55]]]]], [], []]], ["loc", [null, [90, 4], [90, 57]]]]],
         locals: [],
         templates: []
       };
@@ -2350,11 +2345,11 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           "loc": {
             "source": null,
             "start": {
-              "line": 91,
+              "line": 92,
               "column": 0
             },
             "end": {
-              "line": 93,
+              "line": 94,
               "column": 0
             }
           },
@@ -2379,7 +2374,7 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
           return morphs;
         },
-        statements: [["inline", "element-null", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [92, 25], [92, 36]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [92, 46], [92, 54]]]]], [], []]], ["loc", [null, [92, 4], [92, 56]]]]],
+        statements: [["inline", "element-scanner-driver-license", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [93, 43], [93, 54]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [93, 64], [93, 72]]]]], [], []]], ["loc", [null, [93, 4], [93, 74]]]]],
         locals: [],
         templates: []
       };
@@ -2392,11 +2387,11 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           "loc": {
             "source": null,
             "start": {
-              "line": 94,
+              "line": 95,
               "column": 0
             },
             "end": {
-              "line": 96,
+              "line": 97,
               "column": 0
             }
           },
@@ -2421,7 +2416,7 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
           return morphs;
         },
-        statements: [["inline", "element-checklist-item", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [95, 35], [95, 46]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [95, 56], [95, 64]]]]], [], []]], ["loc", [null, [95, 4], [95, 66]]]]],
+        statements: [["inline", "element-scanner-license-plate", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [96, 42], [96, 53]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [96, 63], [96, 71]]]]], [], []]], ["loc", [null, [96, 4], [96, 73]]]]],
         locals: [],
         templates: []
       };
@@ -2434,11 +2429,11 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           "loc": {
             "source": null,
             "start": {
-              "line": 97,
+              "line": 98,
               "column": 0
             },
             "end": {
-              "line": 99,
+              "line": 100,
               "column": 0
             }
           },
@@ -2463,7 +2458,7 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
           return morphs;
         },
-        statements: [["inline", "element-label", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [98, 26], [98, 37]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [98, 47], [98, 55]]]]], [], []]], ["loc", [null, [98, 4], [98, 57]]]]],
+        statements: [["inline", "element-phone", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [99, 26], [99, 37]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [99, 47], [99, 55]]]]], [], []]], ["loc", [null, [99, 4], [99, 57]]]]],
         locals: [],
         templates: []
       };
@@ -2476,11 +2471,11 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           "loc": {
             "source": null,
             "start": {
-              "line": 100,
+              "line": 101,
               "column": 0
             },
             "end": {
-              "line": 102,
+              "line": 103,
               "column": 0
             }
           },
@@ -2505,138 +2500,12 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
           return morphs;
         },
-        statements: [["inline", "element-scanner-driver-license", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [101, 43], [101, 54]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [101, 64], [101, 72]]]]], [], []]], ["loc", [null, [101, 4], [101, 74]]]]],
+        statements: [["inline", "element-radial-buttons", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [102, 35], [102, 46]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [102, 56], [102, 64]]]]], [], []]], ["loc", [null, [102, 4], [102, 66]]]]],
         locals: [],
         templates: []
       };
     })();
     var child16 = (function () {
-      return {
-        meta: {
-          "fragmentReason": false,
-          "revision": "Ember@2.5.1",
-          "loc": {
-            "source": null,
-            "start": {
-              "line": 103,
-              "column": 0
-            },
-            "end": {
-              "line": 105,
-              "column": 0
-            }
-          },
-          "moduleName": "portal/components/element-parent/template.hbs"
-        },
-        isEmpty: false,
-        arity: 0,
-        cachedFragment: null,
-        hasRendered: false,
-        buildFragment: function buildFragment(dom) {
-          var el0 = dom.createDocumentFragment();
-          var el1 = dom.createTextNode("    ");
-          dom.appendChild(el0, el1);
-          var el1 = dom.createComment("");
-          dom.appendChild(el0, el1);
-          var el1 = dom.createTextNode("\n");
-          dom.appendChild(el0, el1);
-          return el0;
-        },
-        buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-          var morphs = new Array(1);
-          morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
-          return morphs;
-        },
-        statements: [["inline", "element-scanner-license-plate", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [104, 42], [104, 53]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [104, 63], [104, 71]]]]], [], []]], ["loc", [null, [104, 4], [104, 73]]]]],
-        locals: [],
-        templates: []
-      };
-    })();
-    var child17 = (function () {
-      return {
-        meta: {
-          "fragmentReason": false,
-          "revision": "Ember@2.5.1",
-          "loc": {
-            "source": null,
-            "start": {
-              "line": 106,
-              "column": 0
-            },
-            "end": {
-              "line": 108,
-              "column": 0
-            }
-          },
-          "moduleName": "portal/components/element-parent/template.hbs"
-        },
-        isEmpty: false,
-        arity: 0,
-        cachedFragment: null,
-        hasRendered: false,
-        buildFragment: function buildFragment(dom) {
-          var el0 = dom.createDocumentFragment();
-          var el1 = dom.createTextNode("    ");
-          dom.appendChild(el0, el1);
-          var el1 = dom.createComment("");
-          dom.appendChild(el0, el1);
-          var el1 = dom.createTextNode("\n");
-          dom.appendChild(el0, el1);
-          return el0;
-        },
-        buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-          var morphs = new Array(1);
-          morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
-          return morphs;
-        },
-        statements: [["inline", "element-phone", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [107, 26], [107, 37]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [107, 47], [107, 55]]]]], [], []]], ["loc", [null, [107, 4], [107, 57]]]]],
-        locals: [],
-        templates: []
-      };
-    })();
-    var child18 = (function () {
-      return {
-        meta: {
-          "fragmentReason": false,
-          "revision": "Ember@2.5.1",
-          "loc": {
-            "source": null,
-            "start": {
-              "line": 109,
-              "column": 0
-            },
-            "end": {
-              "line": 111,
-              "column": 0
-            }
-          },
-          "moduleName": "portal/components/element-parent/template.hbs"
-        },
-        isEmpty: false,
-        arity: 0,
-        cachedFragment: null,
-        hasRendered: false,
-        buildFragment: function buildFragment(dom) {
-          var el0 = dom.createDocumentFragment();
-          var el1 = dom.createTextNode("    ");
-          dom.appendChild(el0, el1);
-          var el1 = dom.createComment("");
-          dom.appendChild(el0, el1);
-          var el1 = dom.createTextNode("\n");
-          dom.appendChild(el0, el1);
-          return el0;
-        },
-        buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-          var morphs = new Array(1);
-          morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
-          return morphs;
-        },
-        statements: [["inline", "element-radial-buttons", [], ["input", ["subexpr", "@mut", [["get", "formElement", ["loc", [null, [110, 35], [110, 46]]]]], [], []], "isActive", ["subexpr", "@mut", [["get", "isActive", ["loc", [null, [110, 56], [110, 64]]]]], [], []]], ["loc", [null, [110, 4], [110, 66]]]]],
-        locals: [],
-        templates: []
-      };
-    })();
-    var child19 = (function () {
       var child0 = (function () {
         return {
           meta: {
@@ -2645,11 +2514,11 @@ define("portal/components/element-parent/template", ["exports"], function (expor
             "loc": {
               "source": null,
               "start": {
-                "line": 114,
+                "line": 106,
                 "column": 2
               },
               "end": {
-                "line": 122,
+                "line": 114,
                 "column": 2
               }
             },
@@ -2700,7 +2569,7 @@ define("portal/components/element-parent/template", ["exports"], function (expor
             morphs[3] = dom.createMorphAt(element0, 7, 7);
             return morphs;
           },
-          statements: [["element", "action", [["get", "deleteElement", ["loc", [null, [117, 76], [117, 89]]]]], [], ["loc", [null, [117, 67], [117, 91]]]], ["inline", "input-label-and-check", [], ["label", "Required", "value", ["subexpr", "@mut", [["get", "formElement.required", ["loc", [null, [118, 55], [118, 75]]]]], [], []]], ["loc", [null, [118, 8], [118, 77]]]], ["inline", "input-label-and-check", [], ["label", "Hidden", "value", ["subexpr", "@mut", [["get", "formElement.hidden", ["loc", [null, [119, 53], [119, 71]]]]], [], []]], ["loc", [null, [119, 8], [119, 73]]]], ["inline", "input-label-and-check", [], ["label", "Disabled", "value", ["subexpr", "@mut", [["get", "formElement.disabled", ["loc", [null, [120, 55], [120, 75]]]]], [], []]], ["loc", [null, [120, 8], [120, 77]]]]],
+          statements: [["element", "action", [["get", "deleteElement", ["loc", [null, [109, 76], [109, 89]]]]], [], ["loc", [null, [109, 67], [109, 91]]]], ["inline", "input-label-and-check", [], ["label", "Required", "value", ["subexpr", "@mut", [["get", "formElement.required", ["loc", [null, [110, 55], [110, 75]]]]], [], []]], ["loc", [null, [110, 8], [110, 77]]]], ["inline", "input-label-and-check", [], ["label", "Hidden", "value", ["subexpr", "@mut", [["get", "formElement.hidden", ["loc", [null, [111, 53], [111, 71]]]]], [], []]], ["loc", [null, [111, 8], [111, 73]]]], ["inline", "input-label-and-check", [], ["label", "Disabled", "value", ["subexpr", "@mut", [["get", "formElement.disabled", ["loc", [null, [112, 55], [112, 75]]]]], [], []]], ["loc", [null, [112, 8], [112, 77]]]]],
           locals: [],
           templates: []
         };
@@ -2712,11 +2581,11 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           "loc": {
             "source": null,
             "start": {
-              "line": 113,
+              "line": 105,
               "column": 0
             },
             "end": {
-              "line": 123,
+              "line": 115,
               "column": 0
             }
           },
@@ -2739,7 +2608,7 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           dom.insertBoundary(fragment, null);
           return morphs;
         },
-        statements: [["block", "unless", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [114, 16], [114, 40]]]], "dropdown"], [], ["loc", [null, [114, 12], [114, 52]]]]], [], 0, null, ["loc", [null, [114, 2], [122, 13]]]]],
+        statements: [["block", "unless", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [106, 16], [106, 40]]]], "dropdown"], [], ["loc", [null, [106, 12], [106, 52]]]]], [], 0, null, ["loc", [null, [106, 2], [114, 13]]]]],
         locals: [],
         templates: [child0]
       };
@@ -2758,7 +2627,7 @@ define("portal/components/element-parent/template", ["exports"], function (expor
             "column": 0
           },
           "end": {
-            "line": 125,
+            "line": 117,
             "column": 6
           }
         },
@@ -2809,13 +2678,7 @@ define("portal/components/element-parent/template", ["exports"], function (expor
         dom.appendChild(el1, el2);
         var el2 = dom.createElement("br");
         dom.appendChild(el1, el2);
-        var el2 = dom.createTextNode(" \n");
-        dom.appendChild(el1, el2);
-        var el2 = dom.createComment("");
-        dom.appendChild(el1, el2);
-        var el2 = dom.createComment("");
-        dom.appendChild(el1, el2);
-        var el2 = dom.createComment("");
+        var el2 = dom.createTextNode(" \n\n");
         dom.appendChild(el1, el2);
         var el2 = dom.createComment("");
         dom.appendChild(el1, el2);
@@ -2858,7 +2721,7 @@ define("portal/components/element-parent/template", ["exports"], function (expor
       },
       buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
         var element4 = dom.childAt(fragment, [3]);
-        var morphs = new Array(21);
+        var morphs = new Array(18);
         morphs[0] = dom.createElementMorph(element4);
         morphs[1] = dom.createMorphAt(element4, 1, 1);
         morphs[2] = dom.createMorphAt(element4, 7, 7);
@@ -2876,15 +2739,12 @@ define("portal/components/element-parent/template", ["exports"], function (expor
         morphs[14] = dom.createMorphAt(element4, 19, 19);
         morphs[15] = dom.createMorphAt(element4, 20, 20);
         morphs[16] = dom.createMorphAt(element4, 21, 21);
-        morphs[17] = dom.createMorphAt(element4, 22, 22);
-        morphs[18] = dom.createMorphAt(element4, 23, 23);
-        morphs[19] = dom.createMorphAt(element4, 24, 24);
-        morphs[20] = dom.createMorphAt(element4, 26, 26);
+        morphs[17] = dom.createMorphAt(element4, 23, 23);
         return morphs;
       },
-      statements: [["element", "action", ["onElementClick"], [], ["loc", [null, [7, 27], [7, 54]]]], ["block", "if", [["get", "isActive", ["loc", [null, [15, 6], [15, 14]]]]], [], 0, null, ["loc", [null, [15, 0], [54, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [58, 10], [58, 34]]]], "Text"], [], ["loc", [null, [58, 6], [58, 42]]]]], [], 1, null, ["loc", [null, [58, 0], [60, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [61, 10], [61, 34]]]], "text"], [], ["loc", [null, [61, 6], [61, 42]]]]], [], 2, null, ["loc", [null, [61, 0], [63, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [64, 10], [64, 34]]]], "date"], [], ["loc", [null, [64, 6], [64, 42]]]]], [], 3, null, ["loc", [null, [64, 0], [66, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [67, 10], [67, 34]]]], "Date"], [], ["loc", [null, [67, 6], [67, 42]]]]], [], 4, null, ["loc", [null, [67, 0], [69, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [70, 10], [70, 34]]]], "date-viewonly"], [], ["loc", [null, [70, 6], [70, 51]]]]], [], 5, null, ["loc", [null, [70, 0], [72, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [73, 10], [73, 34]]]], "dropdown"], [], ["loc", [null, [73, 6], [73, 46]]]]], [], 6, null, ["loc", [null, [73, 0], [75, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [76, 10], [76, 34]]]], "Dropdown"], [], ["loc", [null, [76, 6], [76, 46]]]]], [], 7, null, ["loc", [null, [76, 0], [78, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [79, 10], [79, 34]]]], "visual_representations"], [], ["loc", [null, [79, 6], [79, 60]]]]], [], 8, null, ["loc", [null, [79, 0], [81, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [82, 10], [82, 34]]]], "reseal_form"], [], ["loc", [null, [82, 6], [82, 49]]]]], [], 9, null, ["loc", [null, [82, 0], [84, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [85, 10], [85, 34]]]], "qualified"], [], ["loc", [null, [85, 6], [85, 47]]]]], [], 10, null, ["loc", [null, [85, 0], [87, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [88, 10], [88, 34]]]], "search-step"], [], ["loc", [null, [88, 6], [88, 49]]]]], [], 11, null, ["loc", [null, [88, 0], [90, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [91, 10], [91, 34]]]], "null"], [], ["loc", [null, [91, 6], [91, 42]]]]], [], 12, null, ["loc", [null, [91, 0], [93, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [94, 10], [94, 34]]]], "checklist-item"], [], ["loc", [null, [94, 6], [94, 52]]]]], [], 13, null, ["loc", [null, [94, 0], [96, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [97, 10], [97, 34]]]], "label"], [], ["loc", [null, [97, 6], [97, 43]]]]], [], 14, null, ["loc", [null, [97, 0], [99, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [100, 10], [100, 34]]]], "ScannerDriverLicense"], [], ["loc", [null, [100, 6], [100, 58]]]]], [], 15, null, ["loc", [null, [100, 0], [102, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [103, 10], [103, 34]]]], "ScannerLicensePlate"], [], ["loc", [null, [103, 6], [103, 57]]]]], [], 16, null, ["loc", [null, [103, 0], [105, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [106, 10], [106, 34]]]], "Phone"], [], ["loc", [null, [106, 6], [106, 43]]]]], [], 17, null, ["loc", [null, [106, 0], [108, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [109, 10], [109, 34]]]], "RadialButtons"], [], ["loc", [null, [109, 6], [109, 51]]]]], [], 18, null, ["loc", [null, [109, 0], [111, 7]]]], ["block", "if", [["get", "isActive", ["loc", [null, [113, 6], [113, 14]]]]], [], 19, null, ["loc", [null, [113, 0], [123, 7]]]]],
+      statements: [["element", "action", ["onElementClick"], [], ["loc", [null, [7, 27], [7, 54]]]], ["block", "if", [["get", "isActive", ["loc", [null, [15, 6], [15, 14]]]]], [], 0, null, ["loc", [null, [15, 0], [54, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [59, 10], [59, 34]]]], "text"], [], ["loc", [null, [59, 6], [59, 42]]]]], [], 1, null, ["loc", [null, [59, 0], [61, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [62, 10], [62, 34]]]], "date"], [], ["loc", [null, [62, 6], [62, 42]]]]], [], 2, null, ["loc", [null, [62, 0], [64, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [65, 10], [65, 34]]]], "date-viewonly"], [], ["loc", [null, [65, 6], [65, 51]]]]], [], 3, null, ["loc", [null, [65, 0], [67, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [68, 10], [68, 34]]]], "dropdown"], [], ["loc", [null, [68, 6], [68, 46]]]]], [], 4, null, ["loc", [null, [68, 0], [70, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [71, 10], [71, 34]]]], "visual_representations"], [], ["loc", [null, [71, 6], [71, 60]]]]], [], 5, null, ["loc", [null, [71, 0], [73, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [74, 10], [74, 34]]]], "reseal_form"], [], ["loc", [null, [74, 6], [74, 49]]]]], [], 6, null, ["loc", [null, [74, 0], [76, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [77, 10], [77, 34]]]], "qualified"], [], ["loc", [null, [77, 6], [77, 47]]]]], [], 7, null, ["loc", [null, [77, 0], [79, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [80, 10], [80, 34]]]], "search-step"], [], ["loc", [null, [80, 6], [80, 49]]]]], [], 8, null, ["loc", [null, [80, 0], [82, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [83, 10], [83, 34]]]], "null"], [], ["loc", [null, [83, 6], [83, 42]]]]], [], 9, null, ["loc", [null, [83, 0], [85, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [86, 10], [86, 34]]]], "checklist-item"], [], ["loc", [null, [86, 6], [86, 52]]]]], [], 10, null, ["loc", [null, [86, 0], [88, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [89, 10], [89, 34]]]], "label"], [], ["loc", [null, [89, 6], [89, 43]]]]], [], 11, null, ["loc", [null, [89, 0], [91, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [92, 10], [92, 34]]]], "scannerdriverlicense"], [], ["loc", [null, [92, 6], [92, 58]]]]], [], 12, null, ["loc", [null, [92, 0], [94, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [95, 10], [95, 34]]]], "scannerlicenseplate"], [], ["loc", [null, [95, 6], [95, 57]]]]], [], 13, null, ["loc", [null, [95, 0], [97, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [98, 10], [98, 34]]]], "phone"], [], ["loc", [null, [98, 6], [98, 43]]]]], [], 14, null, ["loc", [null, [98, 0], [100, 7]]]], ["block", "if", [["subexpr", "eq", [["get", "formElement.element_type", ["loc", [null, [101, 10], [101, 34]]]], "radialbuttons"], [], ["loc", [null, [101, 6], [101, 51]]]]], [], 15, null, ["loc", [null, [101, 0], [103, 7]]]], ["block", "if", [["get", "isActive", ["loc", [null, [105, 6], [105, 14]]]]], [], 16, null, ["loc", [null, [105, 0], [115, 7]]]]],
       locals: [],
-      templates: [child0, child1, child2, child3, child4, child5, child6, child7, child8, child9, child10, child11, child12, child13, child14, child15, child16, child17, child18, child19]
+      templates: [child0, child1, child2, child3, child4, child5, child6, child7, child8, child9, child10, child11, child12, child13, child14, child15, child16]
     };
   })());
 });
@@ -5008,7 +4868,7 @@ define("portal/form/template", ["exports"], function (exports) {
                     "column": 24
                   },
                   "end": {
-                    "line": 47,
+                    "line": 46,
                     "column": 24
                   }
                 },
@@ -5022,14 +4882,13 @@ define("portal/form/template", ["exports"], function (exports) {
                 var el0 = dom.createDocumentFragment();
                 var el1 = dom.createComment("");
                 dom.appendChild(el0, el1);
-                var el1 = dom.createTextNode("\n");
-                dom.appendChild(el0, el1);
                 return el0;
               },
               buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
                 var morphs = new Array(1);
                 morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
                 dom.insertBoundary(fragment, 0);
+                dom.insertBoundary(fragment, null);
                 return morphs;
               },
               statements: [["block", "if", [["subexpr", "eq", [["get", "element", ["loc", [null, [28, 38], [28, 45]]]], ["get", "activeElement", ["loc", [null, [28, 46], [28, 59]]]]], [], ["loc", [null, [28, 34], [28, 60]]]]], [], 0, 1, ["loc", [null, [28, 28], [45, 35]]]]],
@@ -5048,7 +4907,7 @@ define("portal/form/template", ["exports"], function (exports) {
                   "column": 20
                 },
                 "end": {
-                  "line": 49,
+                  "line": 47,
                   "column": 20
                 }
               },
@@ -5062,17 +4921,16 @@ define("portal/form/template", ["exports"], function (exports) {
               var el0 = dom.createDocumentFragment();
               var el1 = dom.createComment("");
               dom.appendChild(el0, el1);
-              var el1 = dom.createTextNode("\n");
-              dom.appendChild(el0, el1);
               return el0;
             },
             buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
               var morphs = new Array(1);
               morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
               dom.insertBoundary(fragment, 0);
+              dom.insertBoundary(fragment, null);
               return morphs;
             },
-            statements: [["block", "unless", [["get", "element.isDeleted", ["loc", [null, [27, 34], [27, 51]]]]], [], 0, null, ["loc", [null, [27, 24], [47, 35]]]]],
+            statements: [["block", "unless", [["get", "element.isDeleted", ["loc", [null, [27, 34], [27, 51]]]]], [], 0, null, ["loc", [null, [27, 24], [46, 35]]]]],
             locals: ["element", "index"],
             templates: [child0]
           };
@@ -5088,7 +4946,7 @@ define("portal/form/template", ["exports"], function (exports) {
                 "column": 12
               },
               "end": {
-                "line": 59,
+                "line": 57,
                 "column": 12
               }
             },
@@ -5138,7 +4996,7 @@ define("portal/form/template", ["exports"], function (exports) {
             dom.setAttribute(el3, "aria-hidden", "true");
             dom.appendChild(el2, el3);
             var el3 = dom.createElement("span");
-            var el4 = dom.createTextNode("Add Element");
+            var el4 = dom.createTextNode("Insert Element");
             dom.appendChild(el3, el4);
             dom.appendChild(el2, el3);
             var el3 = dom.createTextNode("\n                    ");
@@ -5163,7 +5021,7 @@ define("portal/form/template", ["exports"], function (exports) {
             morphs[3] = dom.createElementMorph(element4);
             return morphs;
           },
-          statements: [["inline", "input", [], ["class", "section-title", "type", "text", "value", ["subexpr", "@mut", [["get", "section.title", ["loc", [null, [23, 72], [23, 85]]]]], [], []], "placeholder", "Section Title"], ["loc", [null, [23, 24], [23, 115]]]], ["element", "action", ["deleteSection", ["get", "section", ["loc", [null, [24, 116], [24, 123]]]]], [], ["loc", [null, [24, 91], [24, 125]]]], ["block", "each", [["get", "section.elements", ["loc", [null, [26, 28], [26, 44]]]]], [], 0, null, ["loc", [null, [26, 20], [49, 29]]]], ["element", "action", ["addElementToSection", ["get", "section", ["loc", [null, [53, 131], [53, 138]]]]], [], ["loc", [null, [53, 100], [53, 140]]]]],
+          statements: [["inline", "input", [], ["class", "section-title", "type", "text", "value", ["subexpr", "@mut", [["get", "section.title", ["loc", [null, [23, 72], [23, 85]]]]], [], []], "placeholder", "Section Title"], ["loc", [null, [23, 24], [23, 115]]]], ["element", "action", ["deleteSection", ["get", "section", ["loc", [null, [24, 116], [24, 123]]]]], [], ["loc", [null, [24, 91], [24, 125]]]], ["block", "each", [["get", "section.elements", ["loc", [null, [26, 28], [26, 44]]]]], [], 0, null, ["loc", [null, [26, 20], [47, 29]]]], ["element", "action", ["addElementToSection", ["get", "section", ["loc", [null, [51, 131], [51, 138]]]]], [], ["loc", [null, [51, 100], [51, 140]]]]],
           locals: [],
           templates: [child0]
         };
@@ -5179,7 +5037,7 @@ define("portal/form/template", ["exports"], function (exports) {
               "column": 8
             },
             "end": {
-              "line": 60,
+              "line": 58,
               "column": 8
             }
           },
@@ -5202,7 +5060,7 @@ define("portal/form/template", ["exports"], function (exports) {
           dom.insertBoundary(fragment, null);
           return morphs;
         },
-        statements: [["block", "unless", [["get", "section.isDeleted", ["loc", [null, [20, 22], [20, 39]]]]], [], 0, null, ["loc", [null, [20, 12], [59, 23]]]]],
+        statements: [["block", "unless", [["get", "section.isDeleted", ["loc", [null, [20, 22], [20, 39]]]]], [], 0, null, ["loc", [null, [20, 12], [57, 23]]]]],
         locals: ["section"],
         templates: [child0]
       };
@@ -5221,7 +5079,7 @@ define("portal/form/template", ["exports"], function (exports) {
             "column": 0
           },
           "end": {
-            "line": 64,
+            "line": 62,
             "column": 6
           }
         },
@@ -5335,7 +5193,7 @@ define("portal/form/template", ["exports"], function (exports) {
         morphs[4] = dom.createElementMorph(element9);
         return morphs;
       },
-      statements: [["content", "model.name", ["loc", [null, [7, 37], [7, 51]]]], ["element", "action", ["saveForm"], [], ["loc", [null, [11, 59], [11, 80]]]], ["block", "if", [["get", "model.hasDirtyAttributes", ["loc", [null, [15, 10], [15, 34]]]]], [], 0, null, ["loc", [null, [15, 4], [17, 11]]]], ["block", "each", [["get", "model.sections", ["loc", [null, [19, 16], [19, 30]]]]], [], 1, null, ["loc", [null, [19, 8], [60, 17]]]], ["element", "action", ["addSection"], [], ["loc", [null, [62, 14], [62, 38]]]]],
+      statements: [["content", "model.name", ["loc", [null, [7, 37], [7, 51]]]], ["element", "action", ["saveForm"], [], ["loc", [null, [11, 59], [11, 80]]]], ["block", "if", [["get", "model.hasDirtyAttributes", ["loc", [null, [15, 10], [15, 34]]]]], [], 0, null, ["loc", [null, [15, 4], [17, 11]]]], ["block", "each", [["get", "model.sections", ["loc", [null, [19, 16], [19, 30]]]]], [], 1, null, ["loc", [null, [19, 8], [58, 17]]]], ["element", "action", ["addSection"], [], ["loc", [null, [60, 14], [60, 38]]]]],
       locals: [],
       templates: [child0, child1]
     };
@@ -7398,7 +7256,7 @@ catch(err) {
 /* jshint ignore:start */
 
 if (!runningTests) {
-  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+52c5bdb0"});
+  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+b8d7aa4e"});
 }
 
 /* jshint ignore:end */

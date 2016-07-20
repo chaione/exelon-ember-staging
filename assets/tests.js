@@ -13,7 +13,7 @@ define('portal/tests/application/adapter.jshint', ['exports'], function (exports
   QUnit.module('JSHint - application/adapter.js');
   QUnit.test('should pass jshint', function (assert) {
     assert.expect(1);
-    assert.ok(false, 'application/adapter.js should pass jshint.\napplication/adapter.js: line 5, col 14, \'Ember\' is not defined.\napplication/adapter.js: line 10, col 14, \'Ember\' is not defined.\n\n2 errors');
+    assert.ok(true, 'application/adapter.js should pass jshint.');
   });
 });
 define('portal/tests/application/controller.jshint', ['exports'], function (exports) {
