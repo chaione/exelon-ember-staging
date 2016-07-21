@@ -7256,7 +7256,7 @@ catch(err) {
 /* jshint ignore:start */
 
 if (!runningTests) {
-  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+b8d7aa4e"});
+  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+276c2890"});
 }
 
 /* jshint ignore:end */
