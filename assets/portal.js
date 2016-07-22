@@ -1595,7 +1595,7 @@ define('portal/components/element-parent/component', ['exports', 'ember'], funct
             },
             onElementTypeClick: function onElementTypeClick(selection) {
                 this.set('currentType', selection);
-                this.set('formElement.element-type', selection.value);
+                this.set('formElement.element_type', selection.value);
             },
             requiredChanged: function requiredChanged() {
                 this.set('formElement.required', !this.get('formElement.required'));
@@ -4793,7 +4793,7 @@ define("portal/form/template", ["exports"], function (exports) {
                   dom.setAttribute(el2, "aria-hidden", "true");
                   dom.appendChild(el1, el2);
                   var el2 = dom.createElement("span");
-                  var el3 = dom.createTextNode("Add Element");
+                  var el3 = dom.createTextNode("Insert Element");
                   dom.appendChild(el2, el3);
                   dom.appendChild(el1, el2);
                   var el2 = dom.createTextNode("                                \n                                ");
@@ -4996,7 +4996,7 @@ define("portal/form/template", ["exports"], function (exports) {
             dom.setAttribute(el3, "aria-hidden", "true");
             dom.appendChild(el2, el3);
             var el3 = dom.createElement("span");
-            var el4 = dom.createTextNode("Insert Element");
+            var el4 = dom.createTextNode("Add Element");
             dom.appendChild(el3, el4);
             dom.appendChild(el2, el3);
             var el3 = dom.createTextNode("\n                    ");
@@ -7256,7 +7256,7 @@ catch(err) {
 /* jshint ignore:start */
 
 if (!runningTests) {
-  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+276c2890"});
+  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+25935fc4"});
 }
 
 /* jshint ignore:end */
