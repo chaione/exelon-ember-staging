@@ -4513,13 +4513,15 @@ define('portal/form/controller', ['exports', 'ember', 'portal/config/environment
                 var form = this.get('model');
                 var lastSection = section;
                 var newElement = this.store.createRecord('element', {
-                    element_type: 'text'
+                    element_type: 'text',
+                    metadata: {}
                 });
                 section.get('elements').addObject(newElement);
             },
             addElementAfterElement: function addElementAfterElement(section, element, index) {
                 var newElement = this.store.createRecord('element', {
-                    element_type: 'text'
+                    element_type: 'text',
+                    metadata: {}
                 });
                 section.get('elements').insertAt(index + 1, newElement);
             },
@@ -7256,7 +7258,7 @@ catch(err) {
 /* jshint ignore:start */
 
 if (!runningTests) {
-  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+25935fc4"});
+  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+ccdd075f"});
 }
 
 /* jshint ignore:end */
