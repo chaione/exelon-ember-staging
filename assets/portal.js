@@ -1259,13 +1259,6 @@ define("portal/components/element-dropdown/template", ["exports"], function (exp
 });
 define('portal/components/element-free-text/component', ['exports', 'ember'], function (exports, _ember) {
 
-  // export default Ember.Component.extend({
-  //     text : Ember.computed('params.[]', function(){
-  //         return this.get('params')[0];
-  //     })
-  //     // positionalParams: ['title', 'body']
-  // });
-
   var ElementTextComponent = _ember['default'].Component.extend({});
 
   ElementTextComponent.reopenClass({
@@ -1351,7 +1344,7 @@ define("portal/components/element-free-text/template", ["exports"], function (ex
               "column": 0
             },
             "end": {
-              "line": 10,
+              "line": 9,
               "column": 0
             }
           },
@@ -1383,7 +1376,7 @@ define("portal/components/element-free-text/template", ["exports"], function (ex
           morphs[1] = dom.createMorphAt(fragment, 3, 3, contextualElement);
           return morphs;
         },
-        statements: [["content", "input.name", ["loc", [null, [8, 9], [8, 23]]]], ["inline", "input", [], ["class", "form-control", "type", "text", "disabled", true, "value", ["subexpr", "@mut", [["get", "input.placeholder", ["loc", [null, [9, 65], [9, 82]]]]], [], []]], ["loc", [null, [9, 4], [9, 84]]]]],
+        statements: [["content", "input.name", ["loc", [null, [7, 9], [7, 23]]]], ["inline", "input", [], ["class", "form-control", "type", "text", "disabled", true, "value", ["subexpr", "@mut", [["get", "input.placeholder", ["loc", [null, [8, 65], [8, 82]]]]], [], []]], ["loc", [null, [8, 4], [8, 84]]]]],
         locals: [],
         templates: []
       };
@@ -1402,7 +1395,7 @@ define("portal/components/element-free-text/template", ["exports"], function (ex
             "column": 0
           },
           "end": {
-            "line": 11,
+            "line": 10,
             "column": 0
           }
         },
@@ -1425,7 +1418,7 @@ define("portal/components/element-free-text/template", ["exports"], function (ex
         dom.insertBoundary(fragment, null);
         return morphs;
       },
-      statements: [["block", "if", [["get", "isActive", ["loc", [null, [1, 6], [1, 14]]]]], [], 0, 1, ["loc", [null, [1, 0], [10, 7]]]]],
+      statements: [["block", "if", [["get", "isActive", ["loc", [null, [1, 6], [1, 14]]]]], [], 0, 1, ["loc", [null, [1, 0], [9, 7]]]]],
       locals: [],
       templates: [child0, child1]
     };
@@ -1643,138 +1636,137 @@ define("portal/components/element-null/template", ["exports"], function (exports
   })());
 });
 define('portal/components/element-parent/component', ['exports', 'ember'], function (exports, _ember) {
-  var types = [{ name: 'Text', icon: 'icn-input@2x', value: 'text' }, { name: 'Free Text', icon: 'icn-input@2x', value: 'free-text' }, { name: 'Reseal Form', icon: 'icn-form@2x', value: 'reseal_form' }, { name: 'Picture', icon: 'icn-pic@2x', value: 'visual_representations' }, { name: 'Date', icon: 'icn-date-toggle@2x', value: 'date' }, { name: 'Date View Only', icon: 'icn-date@2x', value: 'date-viewonly' }, { name: 'Qualified', icon: 'icn-qualified@2x', value: 'qualified' }, { name: 'CheckList Item', icon: 'icn-checklist@2x', value: 'checklist-item' }, { name: 'Search Procedure', icon: 'icn-instructions@2x', value: 'label' }, { name: 'Driver License Scan', icon: 'icn-dlscanner@2x', value: 'scannerdriverlicense' }, { name: 'License Plate Scan', icon: 'icn-lpscanner@2x', value: 'scannerlicenseplate' }, { name: 'Phone', icon: 'icn-phone@2x', value: 'phone' }, { name: 'Radial Buttons', icon: 'icn-radial@2x', value: 'radialbuttons' }];
+    var types = [{ name: 'Text', icon: 'icn-input@2x', value: 'text' }, { name: 'Free Text', icon: 'icn-freeinput@2x', value: 'free-text' }, { name: 'Reseal Form', icon: 'icn-form@2x', value: 'reseal_form' }, { name: 'Picture', icon: 'icn-pic@2x', value: 'visual_representations' }, { name: 'Date', icon: 'icn-date-toggle@2x', value: 'date' }, { name: 'Date View Only', icon: 'icn-date@2x', value: 'date-viewonly' }, { name: 'Qualified', icon: 'icn-qualified@2x', value: 'qualified' }, { name: 'CheckList Item', icon: 'icn-checklist@2x', value: 'checklist-item' }, { name: 'Search Procedure', icon: 'icn-instructions@2x', value: 'label' }, { name: 'Driver License Scan', icon: 'icn-dlscanner@2x', value: 'scannerdriverlicense' }, { name: 'License Plate Scan', icon: 'icn-lpscanner@2x', value: 'scannerlicenseplate' }, { name: 'Phone', icon: 'icn-phone@2x', value: 'phone' }, { name: 'Radial Buttons', icon: 'icn-radial@2x', value: 'radialbuttons' }];
 
-  // text  - ? place holder input, anything else?
-  // dropdown - ?how do we save their different options
-  // date - are they able to set anything here?
-  // reseal_form - ? what is this
-  // visual_representations - able to set anything?
-  // date-viewonly   - ?able to set anything
-  // qualified - ?what is this, toggle?
-  // checklist-item -?how  to save their different options
-  // label
+    // text  - ? place holder input, anything else?
+    // dropdown - ?how do we save their different options
+    // date - are they able to set anything here?
+    // reseal_form - ? what is this
+    // visual_representations - able to set anything?
+    // date-viewonly   - ?able to set anything
+    // qualified - ?what is this, toggle?
+    // checklist-item -?how  to save their different options
+    // label
 
-  // const keys=  ['sealing-site-phone','shipping-location','receiving-location','sealing-date','container-type','cargo-description','container-number','seal-number','seal-type','manager-notes','check-common','checklist-step-1','checklist-step-2','checklist-step-3','checklist-step-4','checklist-step-5'];
+    // const keys=  ['sealing-site-phone','shipping-location','receiving-location','sealing-date','container-type','cargo-description','container-number','seal-number','seal-type','manager-notes','check-common','checklist-step-1','checklist-step-2','checklist-step-3','checklist-step-4','checklist-step-5'];
+    exports['default'] = _ember['default'].Component.extend({
+        store: _ember['default'].inject.service(),
 
-  exports['default'] = _ember['default'].Component.extend({
-    store: _ember['default'].inject.service(),
+        classNames: ['element-parent'],
+        classNameBindings: ['isActive'],
+        types: types,
+        // keys:Ember.computed(function(){
+        //     let store = this.get('store');
+        //     keyList = store.findAll('element_key');
+        //     console.log("keyList, it got computed");
+        //     return keyList;
 
-    classNames: ['element-parent'],
-    classNameBindings: ['isActive'],
-    types: types,
-    // keys:Ember.computed(function(){
-    //     let store = this.get('store');
-    //     keyList = store.findAll('element_key');
-    //     console.log("keyList, it got computed");
-    //     return keyList;
+        // }),
+        didInsertElement: function didInsertElement() {
+            // didRender: function() {
+            console.log('didrender');
+            this._super.apply(this, arguments);
 
-    // }),
-    didInsertElement: function didInsertElement() {
-      // didRender: function() {
-      console.log('didrender');
-      this._super.apply(this, arguments);
+            var keyDS = this.get('keyDS');
+            this.set('keys', keyDS.get('firstObject').get('keys'));
+            this.set('currentKey', this.get('formElement').get('key'));
 
-      var keyDS = this.get('keyDS');
-      this.set('keys', keyDS.get('firstObject').get('keys'));
-      this.set('currentKey', this.get('formElement').get('key'));
+            var typeLookup = types.reduce(function (o, item, index) {
+                o[item.value.toLowerCase()] = index;
+                return o;
+            }, {});
+            var element = typeLookup[this.get('formElement.element_type').toLowerCase()];
+            var elementType = types[element];
 
-      var typeLookup = types.reduce(function (o, item, index) {
-        o[item.value.toLowerCase()] = index;
-        return o;
-      }, {});
-      var element = typeLookup[this.get('formElement.element_type').toLowerCase()];
-      var elementType = types[element];
+            this.set('currentType', elementType);
 
-      this.set('currentType', elementType);
+            // let keyStore = store.findAll('element_key');
+            // keyStore.forEach(function(key){
+            //     console.log("heres a key", key);
+            // });
 
-      // let keyStore = store.findAll('element_key');
-      // keyStore.forEach(function(key){
-      //     console.log("heres a key", key);
-      // });
+            // let firstKey = keyStore.get('firstObject');
+            // debugger;
 
-      // let firstKey = keyStore.get('firstObject');
-      // debugger;
+            // let keyList = firstKey.keys;
+            // console.log(keyList);
+        },
 
-      // let keyList = firstKey.keys;
-      // console.log(keyList);
-    },
+        // currentType: Ember.computed.alias('formElement.[0]'),
+        // currentType:types[0],
 
-    // currentType: Ember.computed.alias('formElement.[0]'),
-    // currentType:types[0],
+        // currentType: Ember.computed('formElement.name', function() {
 
-    // currentType: Ember.computed('formElement.name', function() {
+        //     // let typeLookup = {'text':0,'reseal_form':1,'visual_representations':2,'date':3,'dropdown':4}
+        //     let typeLookup = types.reduce(function(o, item, index) {
+        //       o[item.value] = index;
+        //       return o;
+        //     }, {});
+        //     let element = typeLookup[this.get('formElement.element_type')];
+        //     let elementType = types[element];
+        //     return elementType;
+        // }),
 
-    //     // let typeLookup = {'text':0,'reseal_form':1,'visual_representations':2,'date':3,'dropdown':4}
-    //     let typeLookup = types.reduce(function(o, item, index) {
-    //       o[item.value] = index;
-    //       return o;
-    //     }, {});
-    //     let element = typeLookup[this.get('formElement.element_type')];
-    //     let elementType = types[element];
-    //     return elementType;
-    // }),
+        // currentKey: Ember.computed('formElement.name', function() {
+        //     console.log('computing currentKey');
+        //     return this.get('formElement.key');
+        // }),
+        isRequired: true,
+        actions: {
+            createKey: function createKey(selection) {
+                console.log("createKey", selection);
+                var keys = this.get('keys');
 
-    // currentKey: Ember.computed('formElement.name', function() {
-    //     console.log('computing currentKey');
-    //     return this.get('formElement.key');
-    // }),
-    isRequired: true,
-    actions: {
-      createKey: function createKey(selection) {
-        console.log("createKey", selection);
-        var keys = this.get('keys');
+                // debugger
+                // keys.pushObject('qwer');
 
-        // debugger
-        // keys.pushObject('qwer');
+                // console.log(keys.pushObject('wert'));
+                keys.pushObject(selection);
+                this.set('keys', keys);
 
-        // console.log(keys.pushObject('wert'));
-        keys.pushObject(selection);
-        this.set('keys', keys);
+                this.set('currentKey', selection);
 
-        this.set('currentKey', selection);
+                this.set('formElement.key', selection);
+                console.log(keys);
+            },
+            hideCreateOptionOnSameName: function hideCreateOptionOnSameName(key) {
+                var isExistingOption = false;
+                var keys = this.get('keys');
+                // let existingOption = this.get('countries').findBy('name', term);
+                for (var i = 0; i < types.length; i++) {
+                    if (keys[i] === key) {
+                        isExistingOption = true;
+                    }
+                }
+                return !isExistingOption;
+            },
+            deleteElement: function deleteElement() {
+                // const element = this.get('formElement.id')
 
-        this.set('formElement.key', selection);
-        console.log(keys);
-      },
-      hideCreateOptionOnSameName: function hideCreateOptionOnSameName(key) {
-        var isExistingOption = false;
-        var keys = this.get('keys');
-        // let existingOption = this.get('countries').findBy('name', term);
-        for (var i = 0; i < types.length; i++) {
-          if (keys[i] === key) {
-            isExistingOption = true;
-          }
+                this.sendAction('deleteElement', this.get('formElement.id'));
+            },
+            onElementClick: function onElementClick() {
+                // this.get('formElement.name')
+                if (!this.get('isActive')) {
+                    this.get('onElementClick')();
+                }
+            },
+            onElementKeyClick: function onElementKeyClick(selection) {
+                // console.log(sele);
+                this.set('currentKey', selection);
+                this.set('formElement.key', selection);
+                // Ember.set('formElement','key',selection)
+                // this.set('formElement.element-type',selection.value);
+            },
+            onElementTypeClick: function onElementTypeClick(selection) {
+                this.set('currentType', selection);
+                this.set('formElement.element_type', selection.value);
+            },
+            requiredChanged: function requiredChanged() {
+                this.set('formElement.required', !this.get('formElement.required'));
+            }
         }
-        return !isExistingOption;
-      },
-      deleteElement: function deleteElement() {
-        // const element = this.get('formElement.id')
-
-        this.sendAction('deleteElement', this.get('formElement.id'));
-      },
-      onElementClick: function onElementClick() {
-        // this.get('formElement.name')
-        if (!this.get('isActive')) {
-          this.get('onElementClick')();
-        }
-      },
-      onElementKeyClick: function onElementKeyClick(selection) {
-        // console.log(sele);
-        this.set('currentKey', selection);
-        this.set('formElement.key', selection);
-        // Ember.set('formElement','key',selection)
-        // this.set('formElement.element-type',selection.value);
-      },
-      onElementTypeClick: function onElementTypeClick(selection) {
-        this.set('currentType', selection);
-        this.set('formElement.element_type', selection.value);
-      },
-      requiredChanged: function requiredChanged() {
-        this.set('formElement.required', !this.get('formElement.required'));
-      }
-    }
-  });
+    });
 });
 define("portal/components/element-parent/template", ["exports"], function (exports) {
   exports["default"] = Ember.HTMLBars.template((function () {
@@ -1928,10 +1920,10 @@ define("portal/components/element-parent/template", ["exports"], function (expor
             var el3 = dom.createTextNode("        ");
             dom.appendChild(el2, el3);
             dom.appendChild(el1, el2);
-            var el2 = dom.createTextNode("\n\n\n\n    ");
+            var el2 = dom.createTextNode("\n        \n\n\n    ");
             dom.appendChild(el1, el2);
             dom.appendChild(el0, el1);
-            var el1 = dom.createTextNode("\n    ");
+            var el1 = dom.createTextNode("   \n    ");
             dom.appendChild(el0, el1);
             var el1 = dom.createElement("br");
             dom.appendChild(el0, el1);
@@ -2842,8 +2834,8 @@ define("portal/components/element-parent/template", ["exports"], function (expor
             "column": 0
           },
           "end": {
-            "line": 121,
-            "column": 0
+            "line": 120,
+            "column": 6
           }
         },
         "moduleName": "portal/components/element-parent/template.hbs"
@@ -2885,7 +2877,7 @@ define("portal/components/element-parent/template", ["exports"], function (expor
         dom.appendChild(el1, el2);
         var el2 = dom.createComment("");
         dom.appendChild(el1, el2);
-        var el2 = dom.createTextNode("\n");
+        var el2 = dom.createTextNode("  \n");
         dom.appendChild(el1, el2);
         var el2 = dom.createElement("br");
         dom.appendChild(el1, el2);
@@ -2893,7 +2885,7 @@ define("portal/components/element-parent/template", ["exports"], function (expor
         dom.appendChild(el1, el2);
         var el2 = dom.createElement("br");
         dom.appendChild(el1, el2);
-        var el2 = dom.createTextNode("\n\n");
+        var el2 = dom.createTextNode(" \n\n");
         dom.appendChild(el1, el2);
         var el2 = dom.createComment("");
         dom.appendChild(el1, el2);
@@ -2933,8 +2925,6 @@ define("portal/components/element-parent/template", ["exports"], function (expor
         dom.appendChild(el1, el2);
         var el2 = dom.createTextNode("\n");
         dom.appendChild(el1, el2);
-        dom.appendChild(el0, el1);
-        var el1 = dom.createTextNode("\n");
         dom.appendChild(el0, el1);
         return el0;
       },
@@ -4786,7 +4776,7 @@ define('portal/form/controller', ['exports', 'ember', 'portal/config/environment
             },
             userDidClickElement: function userDidClickElement(elementClicked) {
                 console.log('elementId', elementClicked.get('id'));
-                console.log('elementType:', elementClicked.get('element-type'));
+                console.log('elementType:', elementClicked.get('element_type'));
                 this.set('activeElement', elementClicked);
             },
             saveForm: function saveForm() {
@@ -7476,7 +7466,7 @@ catch(err) {
 /* jshint ignore:start */
 
 if (!runningTests) {
-  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+ce1f4813"});
+  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+d92863b1"});
 }
 
 /* jshint ignore:end */
