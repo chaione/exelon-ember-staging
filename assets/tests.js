@@ -106,6 +106,15 @@ define('portal/tests/components/element-dropdown/component.jshint', ['exports'],
     assert.ok(false, 'components/element-dropdown/component.js should pass jshint.\ncomponents/element-dropdown/component.js: line 16, col 43, Expected \'===\' and instead saw \'==\'.\n\n1 error');
   });
 });
+define('portal/tests/components/element-free-text/component.jshint', ['exports'], function (exports) {
+  'use strict';
+
+  QUnit.module('JSHint | components/element-free-text/component.js');
+  QUnit.test('should pass jshint', function (assert) {
+    assert.expect(1);
+    assert.ok(true, 'components/element-free-text/component.js should pass jshint.');
+  });
+});
 define('portal/tests/components/element-label/component.jshint', ['exports'], function (exports) {
   'use strict';
 
