@@ -12,6 +12,8 @@ var runningTests = false;
 (function(global) {
   'use strict';
 
+  var stats;
+
   // Save off the original values of these globals, so we can restore them if someone asks us to
   var oldGlobals = {
     loader: loader,
@@ -20,6 +22,37 @@ var runningTests = false;
     require: require,
     requirejs: requirejs
   };
+
+  requirejs = require = requireModule = function(name) {
+    stats.require++;
+    var pending = [];
+    var mod = findModule(name, '(require)', pending);
+
+    for (var i = pending.length - 1; i >= 0; i--) {
+      pending[i].exports();
+    }
+
+    return mod.module.exports;
+  };
+
+  function resetStats() {
+    stats = {
+      define: 0,
+      require: 0,
+      reify: 0,
+      findDeps: 0,
+      modules: 0,
+      exports: 0,
+      resolve: 0,
+      resolveRelative: 0,
+      findModule: 0,
+      pendingQueueLength: 0
+    };
+    requirejs._stats = stats;
+  }
+
+
+  resetStats();
 
   loader = {
     noConflict: function(aliases) {
@@ -49,8 +82,6 @@ var runningTests = false;
 
   var registry = {};
   var seen = {};
-  var FAILED = false;
-  var LOADED = true;
 
   var uuid = 0;
 
@@ -62,16 +93,18 @@ var runningTests = false;
   var defaultDeps = ['require', 'exports', 'module'];
 
   function Module(name, deps, callback, alias) {
+    stats.modules++;
     this.id        = uuid++;
     this.name      = name;
     this.deps      = !deps.length && callback.length ? defaultDeps : deps;
     this.module    = { exports: {} };
     this.callback  = callback;
-    this.state     = undefined;
     this.finalized = false;
     this.hasExportsAsDep = false;
     this.isAlias = alias;
     this.reified = new Array(deps.length);
+    this._foundDeps = false;
+    this.isPending = false;
   }
 
   Module.prototype.makeDefaultExport = function() {
@@ -84,44 +117,66 @@ var runningTests = false;
   };
 
   Module.prototype.exports = function() {
-    if (this.finalized) {
-      return this.module.exports;
-    } else {
-      if (loader.wrapModules) {
-        this.callback = loader.wrapModules(this.name, this.callback);
-      }
-      var result = this.callback.apply(this, this.reified);
-      if (!(this.hasExportsAsDep && result === undefined)) {
-        this.module.exports = result;
-      }
-      this.makeDefaultExport();
-      this.finalized = true;
-      return this.module.exports;
+    if (this.finalized) { return this.module.exports; }
+    stats.exports++;
+
+    this.finalized = true;
+    this.isPending = false;
+
+    if (loader.wrapModules) {
+      this.callback = loader.wrapModules(this.name, this.callback);
     }
+
+    this.reify();
+
+    var result = this.callback.apply(this, this.reified);
+
+    if (!(this.hasExportsAsDep && result === undefined)) {
+      this.module.exports = result;
+    }
+    this.makeDefaultExport();
+    return this.module.exports;
   };
 
   Module.prototype.unsee = function() {
     this.finalized = false;
-    this.state = undefined;
-    this.module = { exports: {}};
+    this._foundDeps = false;
+    this.isPending = false;
+    this.module = { exports: {} };
   };
 
   Module.prototype.reify = function() {
-    var deps = this.deps;
-    var dep;
+    stats.reify++;
     var reified = this.reified;
+    for (var i = 0; i < reified.length; i++) {
+      var mod = reified[i];
+      reified[i] = mod.exports ? mod.exports : mod.module.exports();
+    }
+  };
+
+  Module.prototype.findDeps = function(pending) {
+    if (this._foundDeps) {
+      return;
+    }
+
+    stats.findDeps++;
+    this._foundDeps = true;
+    this.isPending = true;
+
+    var deps = this.deps;
 
     for (var i = 0; i < deps.length; i++) {
-      dep = deps[i];
+      var dep = deps[i];
+      var entry = this.reified[i] = { exports: undefined, module: undefined };
       if (dep === 'exports') {
         this.hasExportsAsDep = true;
-        reified[i] = this.module.exports;
+        entry.exports = this.module.exports;
       } else if (dep === 'require') {
-        reified[i] = this.makeRequire();
+        entry.exports = this.makeRequire();
       } else if (dep === 'module') {
-        reified[i] = this.module;
+        entry.exports = this.module;
       } else {
-        reified[i] = findModule(resolve(dep, this.name), this.name).module.exports;
+        entry.module = findModule(resolve(dep, this.name), this.name, pending);
       }
     }
   };
@@ -134,19 +189,12 @@ var runningTests = false;
     r['default'] = r;
     r.has = function(dep) {
       return has(resolve(dep, name));
-    }
+    };
     return r;
   };
 
-  Module.prototype.build = function() {
-    if (this.state === FAILED || this.state === LOADED) { return; }
-    this.state = FAILED;
-    this.reify()
-    this.exports();
-    this.state = LOADED;
-  };
-
   define = function(name, deps, callback) {
+    stats.define++;
     if (arguments.length < 2) {
       unsupportedModule(arguments.length);
     }
@@ -180,11 +228,8 @@ var runningTests = false;
     throw new Error('Could not find module `' + name + '` imported from `' + referrer + '`');
   }
 
-  requirejs = require = requireModule = function(name) {
-    return findModule(name, '(require)').module.exports;
-  };
-
-  function findModule(name, referrer) {
+  function findModule(name, referrer, pending) {
+    stats.findModule++;
     var mod = registry[name] || registry[name + '/index'];
 
     while (mod && mod.isAlias) {
@@ -193,12 +238,18 @@ var runningTests = false;
 
     if (!mod) { missingModule(name, referrer); }
 
-    mod.build();
+    if (pending && !mod.finalized && !mod.isPending) {
+      mod.findDeps(pending);
+      pending.push(mod);
+      stats.pendingQueueLength++;
+    }
     return mod;
   }
 
   function resolve(child, name) {
+    stats.resolve++;
     if (child.charAt(0) !== '.') { return child; }
+    stats.resolveRelative++;
 
     var parts = child.split('/');
     var nameParts = name.split('/');
@@ -227,10 +278,11 @@ var runningTests = false;
   requirejs.entries = requirejs._eak_seen = registry;
   requirejs.has = has;
   requirejs.unsee = function(moduleName) {
-    findModule(moduleName, '(unsee)').unsee();
+    findModule(moduleName, '(unsee)', false).unsee();
   };
 
   requirejs.clear = function() {
+    resetStats();
     requirejs.entries = requirejs._eak_seen = registry = {};
     seen = {};
   };
@@ -253,13 +305,13 @@ var runningTests = false;
 
   requirejs.clear();
 
-  if (typeof module !== 'undefined') {
+  if (typeof exports === 'object' && typeof module === 'object' && module.exports) {
     module.exports = { require: require, define: define };
   }
 })(this);
 
 ;/*!
- * jQuery JavaScript Library v2.2.3
+ * jQuery JavaScript Library v2.2.4
  * http://jquery.com/
  *
  * Includes Sizzle.js
@@ -269,7 +321,7 @@ var runningTests = false;
  * Released under the MIT license
  * http://jquery.org/license
  *
- * Date: 2016-04-05T19:26Z
+ * Date: 2016-05-20T17:23Z
  */
 
 (function( global, factory ) {
@@ -325,7 +377,7 @@ var support = {};
 
 
 var
-	version = "2.2.3",
+	version = "2.2.4",
 
 	// Define a local copy of jQuery
 	jQuery = function( selector, context ) {
@@ -5266,13 +5318,14 @@ jQuery.Event.prototype = {
 	isDefaultPrevented: returnFalse,
 	isPropagationStopped: returnFalse,
 	isImmediatePropagationStopped: returnFalse,
+	isSimulated: false,
 
 	preventDefault: function() {
 		var e = this.originalEvent;
 
 		this.isDefaultPrevented = returnTrue;
 
-		if ( e ) {
+		if ( e && !this.isSimulated ) {
 			e.preventDefault();
 		}
 	},
@@ -5281,7 +5334,7 @@ jQuery.Event.prototype = {
 
 		this.isPropagationStopped = returnTrue;
 
-		if ( e ) {
+		if ( e && !this.isSimulated ) {
 			e.stopPropagation();
 		}
 	},
@@ -5290,7 +5343,7 @@ jQuery.Event.prototype = {
 
 		this.isImmediatePropagationStopped = returnTrue;
 
-		if ( e ) {
+		if ( e && !this.isSimulated ) {
 			e.stopImmediatePropagation();
 		}
 
@@ -6220,19 +6273,6 @@ function getWidthOrHeight( elem, name, extra ) {
 		val = name === "width" ? elem.offsetWidth : elem.offsetHeight,
 		styles = getStyles( elem ),
 		isBorderBox = jQuery.css( elem, "boxSizing", false, styles ) === "border-box";
-
-	// Support: IE11 only
-	// In IE 11 fullscreen elements inside of an iframe have
-	// 100x too small dimensions (gh-1764).
-	if ( document.msFullscreenElement && window.top !== window ) {
-
-		// Support: IE11 only
-		// Running getBoundingClientRect on a disconnected node
-		// in IE throws an error.
-		if ( elem.getClientRects().length ) {
-			val = Math.round( elem.getBoundingClientRect()[ name ] * 100 );
-		}
-	}
 
 	// Some non-html elements return undefined for offsetWidth, so check for null/undefined
 	// svg - https://bugzilla.mozilla.org/show_bug.cgi?id=649285
@@ -8124,6 +8164,7 @@ jQuery.extend( jQuery.event, {
 	},
 
 	// Piggyback on a donor event to simulate a different one
+	// Used only for `focus(in | out)` events
 	simulate: function( type, elem, event ) {
 		var e = jQuery.extend(
 			new jQuery.Event(),
@@ -8131,27 +8172,10 @@ jQuery.extend( jQuery.event, {
 			{
 				type: type,
 				isSimulated: true
-
-				// Previously, `originalEvent: {}` was set here, so stopPropagation call
-				// would not be triggered on donor event, since in our own
-				// jQuery.event.stopPropagation function we had a check for existence of
-				// originalEvent.stopPropagation method, so, consequently it would be a noop.
-				//
-				// But now, this "simulate" function is used only for events
-				// for which stopPropagation() is noop, so there is no need for that anymore.
-				//
-				// For the 1.x branch though, guard for "click" and "submit"
-				// events is still used, but was moved to jQuery.event.stopPropagation function
-				// because `originalEvent` should point to the original event for the constancy
-				// with other events and for more focused logic
 			}
 		);
 
 		jQuery.event.trigger( e, null, elem );
-
-		if ( e.isDefaultPrevented() ) {
-			event.preventDefault();
-		}
 	}
 
 } );
@@ -66707,8 +66731,8 @@ requireModule("ember");
 })();
 
 ;/*!
- * Bootstrap v3.3.6 (http://getbootstrap.com)
- * Copyright 2011-2015 Twitter, Inc.
+ * Bootstrap v3.3.7 (http://getbootstrap.com)
+ * Copyright 2011-2016 Twitter, Inc.
  * Licensed under the MIT license
  */
 
@@ -66719,16 +66743,16 @@ if (typeof jQuery === 'undefined') {
 +function ($) {
   'use strict';
   var version = $.fn.jquery.split(' ')[0].split('.')
-  if ((version[0] < 2 && version[1] < 9) || (version[0] == 1 && version[1] == 9 && version[2] < 1) || (version[0] > 2)) {
-    throw new Error('Bootstrap\'s JavaScript requires jQuery version 1.9.1 or higher, but lower than version 3')
+  if ((version[0] < 2 && version[1] < 9) || (version[0] == 1 && version[1] == 9 && version[2] < 1) || (version[0] > 3)) {
+    throw new Error('Bootstrap\'s JavaScript requires jQuery version 1.9.1 or higher, but lower than version 4')
   }
 }(jQuery);
 
 /* ========================================================================
- * Bootstrap: transition.js v3.3.6
+ * Bootstrap: transition.js v3.3.7
  * http://getbootstrap.com/javascript/#transitions
  * ========================================================================
- * Copyright 2011-2015 Twitter, Inc.
+ * Copyright 2011-2016 Twitter, Inc.
  * Licensed under MIT (https://github.com/twbs/bootstrap/blob/master/LICENSE)
  * ======================================================================== */
 
@@ -66785,10 +66809,10 @@ if (typeof jQuery === 'undefined') {
 }(jQuery);
 
 /* ========================================================================
- * Bootstrap: alert.js v3.3.6
+ * Bootstrap: alert.js v3.3.7
  * http://getbootstrap.com/javascript/#alerts
  * ========================================================================
- * Copyright 2011-2015 Twitter, Inc.
+ * Copyright 2011-2016 Twitter, Inc.
  * Licensed under MIT (https://github.com/twbs/bootstrap/blob/master/LICENSE)
  * ======================================================================== */
 
@@ -66804,7 +66828,7 @@ if (typeof jQuery === 'undefined') {
     $(el).on('click', dismiss, this.close)
   }
 
-  Alert.VERSION = '3.3.6'
+  Alert.VERSION = '3.3.7'
 
   Alert.TRANSITION_DURATION = 150
 
@@ -66817,7 +66841,7 @@ if (typeof jQuery === 'undefined') {
       selector = selector && selector.replace(/.*(?=#[^\s]*$)/, '') // strip for ie7
     }
 
-    var $parent = $(selector)
+    var $parent = $(selector === '#' ? [] : selector)
 
     if (e) e.preventDefault()
 
@@ -66880,10 +66904,10 @@ if (typeof jQuery === 'undefined') {
 }(jQuery);
 
 /* ========================================================================
- * Bootstrap: button.js v3.3.6
+ * Bootstrap: button.js v3.3.7
  * http://getbootstrap.com/javascript/#buttons
  * ========================================================================
- * Copyright 2011-2015 Twitter, Inc.
+ * Copyright 2011-2016 Twitter, Inc.
  * Licensed under MIT (https://github.com/twbs/bootstrap/blob/master/LICENSE)
  * ======================================================================== */
 
@@ -66900,7 +66924,7 @@ if (typeof jQuery === 'undefined') {
     this.isLoading = false
   }
 
-  Button.VERSION  = '3.3.6'
+  Button.VERSION  = '3.3.7'
 
   Button.DEFAULTS = {
     loadingText: 'loading...'
@@ -66922,10 +66946,10 @@ if (typeof jQuery === 'undefined') {
 
       if (state == 'loadingText') {
         this.isLoading = true
-        $el.addClass(d).attr(d, d)
+        $el.addClass(d).attr(d, d).prop(d, true)
       } else if (this.isLoading) {
         this.isLoading = false
-        $el.removeClass(d).removeAttr(d)
+        $el.removeClass(d).removeAttr(d).prop(d, false)
       }
     }, this), 0)
   }
@@ -66989,10 +67013,15 @@ if (typeof jQuery === 'undefined') {
 
   $(document)
     .on('click.bs.button.data-api', '[data-toggle^="button"]', function (e) {
-      var $btn = $(e.target)
-      if (!$btn.hasClass('btn')) $btn = $btn.closest('.btn')
+      var $btn = $(e.target).closest('.btn')
       Plugin.call($btn, 'toggle')
-      if (!($(e.target).is('input[type="radio"]') || $(e.target).is('input[type="checkbox"]'))) e.preventDefault()
+      if (!($(e.target).is('input[type="radio"], input[type="checkbox"]'))) {
+        // Prevent double click on radios, and the double selections (so cancellation) on checkboxes
+        e.preventDefault()
+        // The target component still receive the focus
+        if ($btn.is('input,button')) $btn.trigger('focus')
+        else $btn.find('input:visible,button:visible').first().trigger('focus')
+      }
     })
     .on('focus.bs.button.data-api blur.bs.button.data-api', '[data-toggle^="button"]', function (e) {
       $(e.target).closest('.btn').toggleClass('focus', /^focus(in)?$/.test(e.type))
@@ -67001,10 +67030,10 @@ if (typeof jQuery === 'undefined') {
 }(jQuery);
 
 /* ========================================================================
- * Bootstrap: carousel.js v3.3.6
+ * Bootstrap: carousel.js v3.3.7
  * http://getbootstrap.com/javascript/#carousel
  * ========================================================================
- * Copyright 2011-2015 Twitter, Inc.
+ * Copyright 2011-2016 Twitter, Inc.
  * Licensed under MIT (https://github.com/twbs/bootstrap/blob/master/LICENSE)
  * ======================================================================== */
 
@@ -67032,7 +67061,7 @@ if (typeof jQuery === 'undefined') {
       .on('mouseleave.bs.carousel', $.proxy(this.cycle, this))
   }
 
-  Carousel.VERSION  = '3.3.6'
+  Carousel.VERSION  = '3.3.7'
 
   Carousel.TRANSITION_DURATION = 600
 
@@ -67239,13 +67268,14 @@ if (typeof jQuery === 'undefined') {
 }(jQuery);
 
 /* ========================================================================
- * Bootstrap: collapse.js v3.3.6
+ * Bootstrap: collapse.js v3.3.7
  * http://getbootstrap.com/javascript/#collapse
  * ========================================================================
- * Copyright 2011-2015 Twitter, Inc.
+ * Copyright 2011-2016 Twitter, Inc.
  * Licensed under MIT (https://github.com/twbs/bootstrap/blob/master/LICENSE)
  * ======================================================================== */
 
+/* jshint latedef: false */
 
 +function ($) {
   'use strict';
@@ -67269,7 +67299,7 @@ if (typeof jQuery === 'undefined') {
     if (this.options.toggle) this.toggle()
   }
 
-  Collapse.VERSION  = '3.3.6'
+  Collapse.VERSION  = '3.3.7'
 
   Collapse.TRANSITION_DURATION = 350
 
@@ -67451,10 +67481,10 @@ if (typeof jQuery === 'undefined') {
 }(jQuery);
 
 /* ========================================================================
- * Bootstrap: dropdown.js v3.3.6
+ * Bootstrap: dropdown.js v3.3.7
  * http://getbootstrap.com/javascript/#dropdowns
  * ========================================================================
- * Copyright 2011-2015 Twitter, Inc.
+ * Copyright 2011-2016 Twitter, Inc.
  * Licensed under MIT (https://github.com/twbs/bootstrap/blob/master/LICENSE)
  * ======================================================================== */
 
@@ -67471,7 +67501,7 @@ if (typeof jQuery === 'undefined') {
     $(element).on('click.bs.dropdown', this.toggle)
   }
 
-  Dropdown.VERSION = '3.3.6'
+  Dropdown.VERSION = '3.3.7'
 
   function getParent($this) {
     var selector = $this.attr('data-target')
@@ -67617,10 +67647,10 @@ if (typeof jQuery === 'undefined') {
 }(jQuery);
 
 /* ========================================================================
- * Bootstrap: modal.js v3.3.6
+ * Bootstrap: modal.js v3.3.7
  * http://getbootstrap.com/javascript/#modals
  * ========================================================================
- * Copyright 2011-2015 Twitter, Inc.
+ * Copyright 2011-2016 Twitter, Inc.
  * Licensed under MIT (https://github.com/twbs/bootstrap/blob/master/LICENSE)
  * ======================================================================== */
 
@@ -67651,7 +67681,7 @@ if (typeof jQuery === 'undefined') {
     }
   }
 
-  Modal.VERSION  = '3.3.6'
+  Modal.VERSION  = '3.3.7'
 
   Modal.TRANSITION_DURATION = 300
   Modal.BACKDROP_TRANSITION_DURATION = 150
@@ -67758,7 +67788,9 @@ if (typeof jQuery === 'undefined') {
     $(document)
       .off('focusin.bs.modal') // guard against infinite focus loop
       .on('focusin.bs.modal', $.proxy(function (e) {
-        if (this.$element[0] !== e.target && !this.$element.has(e.target).length) {
+        if (document !== e.target &&
+            this.$element[0] !== e.target &&
+            !this.$element.has(e.target).length) {
           this.$element.trigger('focus')
         }
       }, this))
@@ -67955,11 +67987,11 @@ if (typeof jQuery === 'undefined') {
 }(jQuery);
 
 /* ========================================================================
- * Bootstrap: tooltip.js v3.3.6
+ * Bootstrap: tooltip.js v3.3.7
  * http://getbootstrap.com/javascript/#tooltip
  * Inspired by the original jQuery.tipsy by Jason Frame
  * ========================================================================
- * Copyright 2011-2015 Twitter, Inc.
+ * Copyright 2011-2016 Twitter, Inc.
  * Licensed under MIT (https://github.com/twbs/bootstrap/blob/master/LICENSE)
  * ======================================================================== */
 
@@ -67982,7 +68014,7 @@ if (typeof jQuery === 'undefined') {
     this.init('tooltip', element, options)
   }
 
-  Tooltip.VERSION  = '3.3.6'
+  Tooltip.VERSION  = '3.3.7'
 
   Tooltip.TRANSITION_DURATION = 150
 
@@ -68273,9 +68305,11 @@ if (typeof jQuery === 'undefined') {
 
     function complete() {
       if (that.hoverState != 'in') $tip.detach()
-      that.$element
-        .removeAttr('aria-describedby')
-        .trigger('hidden.bs.' + that.type)
+      if (that.$element) { // TODO: Check whether guarding this code with this `if` is really necessary.
+        that.$element
+          .removeAttr('aria-describedby')
+          .trigger('hidden.bs.' + that.type)
+      }
       callback && callback()
     }
 
@@ -68318,7 +68352,10 @@ if (typeof jQuery === 'undefined') {
       // width and height are missing in IE8, so compute them manually; see https://github.com/twbs/bootstrap/issues/14093
       elRect = $.extend({}, elRect, { width: elRect.right - elRect.left, height: elRect.bottom - elRect.top })
     }
-    var elOffset  = isBody ? { top: 0, left: 0 } : $element.offset()
+    var isSvg = window.SVGElement && el instanceof window.SVGElement
+    // Avoid using $.offset() on SVGs since it gives incorrect results in jQuery 3.
+    // See https://github.com/twbs/bootstrap/issues/20280
+    var elOffset  = isBody ? { top: 0, left: 0 } : (isSvg ? null : $element.offset())
     var scroll    = { scroll: isBody ? document.documentElement.scrollTop || document.body.scrollTop : $element.scrollTop() }
     var outerDims = isBody ? { width: $(window).width(), height: $(window).height() } : null
 
@@ -68434,6 +68471,7 @@ if (typeof jQuery === 'undefined') {
       that.$tip = null
       that.$arrow = null
       that.$viewport = null
+      that.$element = null
     })
   }
 
@@ -68470,10 +68508,10 @@ if (typeof jQuery === 'undefined') {
 }(jQuery);
 
 /* ========================================================================
- * Bootstrap: popover.js v3.3.6
+ * Bootstrap: popover.js v3.3.7
  * http://getbootstrap.com/javascript/#popovers
  * ========================================================================
- * Copyright 2011-2015 Twitter, Inc.
+ * Copyright 2011-2016 Twitter, Inc.
  * Licensed under MIT (https://github.com/twbs/bootstrap/blob/master/LICENSE)
  * ======================================================================== */
 
@@ -68490,7 +68528,7 @@ if (typeof jQuery === 'undefined') {
 
   if (!$.fn.tooltip) throw new Error('Popover requires tooltip.js')
 
-  Popover.VERSION  = '3.3.6'
+  Popover.VERSION  = '3.3.7'
 
   Popover.DEFAULTS = $.extend({}, $.fn.tooltip.Constructor.DEFAULTS, {
     placement: 'right',
@@ -68579,10 +68617,10 @@ if (typeof jQuery === 'undefined') {
 }(jQuery);
 
 /* ========================================================================
- * Bootstrap: scrollspy.js v3.3.6
+ * Bootstrap: scrollspy.js v3.3.7
  * http://getbootstrap.com/javascript/#scrollspy
  * ========================================================================
- * Copyright 2011-2015 Twitter, Inc.
+ * Copyright 2011-2016 Twitter, Inc.
  * Licensed under MIT (https://github.com/twbs/bootstrap/blob/master/LICENSE)
  * ======================================================================== */
 
@@ -68608,7 +68646,7 @@ if (typeof jQuery === 'undefined') {
     this.process()
   }
 
-  ScrollSpy.VERSION  = '3.3.6'
+  ScrollSpy.VERSION  = '3.3.7'
 
   ScrollSpy.DEFAULTS = {
     offset: 10
@@ -68752,10 +68790,10 @@ if (typeof jQuery === 'undefined') {
 }(jQuery);
 
 /* ========================================================================
- * Bootstrap: tab.js v3.3.6
+ * Bootstrap: tab.js v3.3.7
  * http://getbootstrap.com/javascript/#tabs
  * ========================================================================
- * Copyright 2011-2015 Twitter, Inc.
+ * Copyright 2011-2016 Twitter, Inc.
  * Licensed under MIT (https://github.com/twbs/bootstrap/blob/master/LICENSE)
  * ======================================================================== */
 
@@ -68772,7 +68810,7 @@ if (typeof jQuery === 'undefined') {
     // jscs:enable requireDollarBeforejQueryAssignment
   }
 
-  Tab.VERSION = '3.3.6'
+  Tab.VERSION = '3.3.7'
 
   Tab.TRANSITION_DURATION = 150
 
@@ -68908,10 +68946,10 @@ if (typeof jQuery === 'undefined') {
 }(jQuery);
 
 /* ========================================================================
- * Bootstrap: affix.js v3.3.6
+ * Bootstrap: affix.js v3.3.7
  * http://getbootstrap.com/javascript/#affix
  * ========================================================================
- * Copyright 2011-2015 Twitter, Inc.
+ * Copyright 2011-2016 Twitter, Inc.
  * Licensed under MIT (https://github.com/twbs/bootstrap/blob/master/LICENSE)
  * ======================================================================== */
 
@@ -68937,7 +68975,7 @@ if (typeof jQuery === 'undefined') {
     this.checkPosition()
   }
 
-  Affix.VERSION  = '3.3.6'
+  Affix.VERSION  = '3.3.7'
 
   Affix.RESET    = 'affix affix-top affix-bottom'
 
@@ -69672,140 +69710,6 @@ define('ember-ajax/utils/parse-response-headers', ['exports'], function (exports
     return headers;
   }
 });
-define('ember-basic-dropdown/components/basic-dropdown/content', ['exports', 'ember-wormhole/components/ember-wormhole', 'ember', 'ember-basic-dropdown/templates/components/basic-dropdown/content'], function (exports, _emberWormholeComponentsEmberWormhole, _ember, _emberBasicDropdownTemplatesComponentsBasicDropdownContent) {
-  'use strict';
-
-  var run = _ember['default'].run;
-
-  var MutObserver = self.window.MutationObserver || self.window.WebKitMutationObserver;
-  function waitForAnimations(element, callback) {
-    var computedStyle = self.window.getComputedStyle(element);
-    if (computedStyle.transitionDuration !== '0s') {
-      (function () {
-        var eventCallback = function eventCallback() {
-          element.removeEventListener('transitionend', eventCallback);
-          callback();
-        };
-        element.addEventListener('transitionend', eventCallback);
-      })();
-    } else if (computedStyle.animationName !== 'none' && computedStyle.animationPlayState === 'running') {
-      (function () {
-        var eventCallback = function eventCallback() {
-          element.removeEventListener('animationend', eventCallback);
-          callback();
-        };
-        element.addEventListener('animationend', eventCallback);
-      })();
-    } else {
-      callback();
-    }
-  }
-
-  exports['default'] = _emberWormholeComponentsEmberWormhole['default'].extend({
-    layout: _emberBasicDropdownTemplatesComponentsBasicDropdownContent['default'],
-    mutationObserver: null,
-
-    // Lifecycle hooks
-    didInsertElement: function didInsertElement() {
-      this._super.apply(this, arguments);
-      var dropdown = self.window.document.getElementById(this.get('dropdownId'));
-      this.handleRootMouseDown = this.handleRootMouseDown.bind(this, dropdown);
-      this.get('appRoot').addEventListener('mousedown', this.handleRootMouseDown, true);
-      if (!this.get('renderInPlace')) {
-        dropdown.addEventListener('focusin', this.get('onFocusIn'));
-        dropdown.addEventListener('focusout', this.get('onFocusOut'));
-        this.addGlobalEvents(dropdown);
-      }
-      run.scheduleOnce('actions', this.get('reposition'));
-      if (this.get('animationEnabled')) {
-        run.scheduleOnce('actions', this, this.animateIn, dropdown);
-      }
-    },
-
-    willDestroyElement: function willDestroyElement() {
-      this._super.apply(this, arguments);
-      var dropdown = self.window.document.getElementById(this.get('dropdownId'));
-      this.get('appRoot').removeEventListener('mousedown', this.handleRootMouseDown, true);
-      this.removeGlobalEvents(dropdown);
-      if (this.get('animationEnabled')) {
-        this.animateOut(dropdown);
-      }
-    },
-
-    // Methods
-    animateIn: function animateIn(dropdown) {
-      var _this = this;
-
-      this.set('transitionClass', 'ember-basic-dropdown--transitioning-in');
-      waitForAnimations(dropdown, function () {
-        return _this.set('ember-basic-dropdown--transitioned-in');
-      });
-    },
-
-    animateOut: function animateOut(dropdown) {
-      var parentElement = this.get('renderInPlace') ? dropdown.parentElement.parentElement : dropdown.parentElement;
-      var clone = dropdown.cloneNode(true);
-      clone.id = clone.id + '--clone';
-      clone.classList.remove('ember-basic-dropdown--transitioned-in');
-      clone.classList.remove('ember-basic-dropdown--transitioning-in');
-      clone.classList.add('ember-basic-dropdown--transitioning-out');
-      parentElement.appendChild(clone);
-      waitForAnimations(clone, function () {
-        parentElement.removeChild(clone);
-      });
-    },
-
-    handleRootMouseDown: function handleRootMouseDown(dropdownContent, e) {
-      var comesFromInside = this.element.parentElement.contains(e.target) || dropdownContent.contains(e.target);
-      if (comesFromInside) {
-        return;
-      }
-      var closestDDcontent = _ember['default'].$(e.target).closest('.ember-basic-dropdown-content')[0];
-      if (closestDDcontent) {
-        var closestDropdownId = closestDDcontent.id.match(/ember\d+$/)[0];
-        var clickedOnNestedDropdown = !!dropdownContent.querySelector('#' + closestDropdownId);
-        if (clickedOnNestedDropdown) {
-          return;
-        }
-      }
-      this.get('close')(e, true);
-    },
-
-    addGlobalEvents: function addGlobalEvents(dropdown) {
-      var reposition = this.get('reposition');
-      self.window.addEventListener('scroll', reposition);
-      self.window.addEventListener('resize', reposition);
-      self.window.addEventListener('orientationchange', reposition);
-      if (MutObserver) {
-        this.mutationObserver = new MutObserver(function (mutations) {
-          if (mutations[0].addedNodes.length || mutations[0].removedNodes.length) {
-            reposition();
-          }
-        });
-        this.mutationObserver.observe(dropdown, { childList: true, subtree: true });
-      } else {
-        dropdown.addEventListener('DOMNodeInserted', reposition, false);
-        dropdown.addEventListener('DOMNodeRemoved', reposition, false);
-      }
-    },
-
-    removeGlobalEvents: function removeGlobalEvents(dropdown) {
-      var reposition = this.get('reposition');
-      self.window.removeEventListener('scroll', reposition);
-      self.window.removeEventListener('resize', reposition);
-      self.window.removeEventListener('orientationchange', reposition);
-      if (MutObserver) {
-        if (this.mutationObserver) {
-          this.mutationObserver.disconnect();
-          this.mutationObserver = null;
-        }
-      } else {
-        dropdown.removeEventListener('DOMNodeInserted', reposition);
-        dropdown.removeEventListener('DOMNodeRemoved', reposition);
-      }
-    }
-  });
-});
 define('ember-basic-dropdown/components/basic-dropdown', ['exports', 'ember', 'ember-basic-dropdown/templates/components/basic-dropdown', 'ember-getowner-polyfill', 'ember-get-config'], function (exports, _ember, _emberBasicDropdownTemplatesComponentsBasicDropdown, _emberGetownerPolyfill, _emberGetConfig) {
   /*jshint unused:false*/
   'use strict';
@@ -69828,7 +69732,7 @@ define('ember-basic-dropdown/components/basic-dropdown', ['exports', 'ember', 'e
     initiallyOpened: false,
     hasFocusInside: false,
     verticalPosition: 'auto', // above | below
-    horizontalPosition: 'auto', // right | left
+    horizontalPosition: 'auto', // right | center | left
     classNames: ['ember-basic-dropdown'],
     attributeBindings: ['dir'],
     classNameBindings: ['renderInPlace:ember-basic-dropdown--in-place', 'hasFocusInside:ember-basic-dropdown--focus-inside', '_verticalPositionClass', '_horizontalPositionClass'],
@@ -70068,13 +69972,13 @@ define('ember-basic-dropdown/components/basic-dropdown', ['exports', 'ember', 'e
       // hPosition
       var hPosition = this.get('horizontalPosition');
       if (this.get('renderInPlace')) {
-        if (['right', 'left'].indexOf(hPosition) === -1) {
+        if (['right', 'left', 'center'].indexOf(hPosition) === -1) {
           var viewportRight = scrollLeft + self.window.innerWidth;
           hPosition = triggerLeft + dropdownWidth > viewportRight ? 'right' : 'left';
         }
         return this.set('_horizontalPositionClass', 'ember-basic-dropdown--' + hPosition);
       } else {
-        if (['right', 'left'].indexOf(hPosition) === -1) {
+        if (['right', 'left', 'center'].indexOf(hPosition) === -1) {
           var viewportRight = scrollLeft + self.window.innerWidth;
           var roomForRight = viewportRight - triggerLeft;
           var roomForLeft = triggerLeft;
@@ -70082,6 +69986,8 @@ define('ember-basic-dropdown/components/basic-dropdown', ['exports', 'ember', 'e
         }
         if (hPosition === 'right') {
           dropdownLeft = triggerLeft + triggerWidth - dropdownWidth;
+        } else if (hPosition === 'center') {
+          dropdownLeft = triggerLeft + (triggerWidth - dropdownWidth) / 2;
         }
         this.set('_horizontalPositionClass', 'ember-basic-dropdown--' + hPosition);
       }
@@ -70152,59 +70058,174 @@ define('ember-basic-dropdown/components/basic-dropdown', ['exports', 'ember', 'e
     }
   });
 });
-define("ember-basic-dropdown/templates/components/basic-dropdown/content", ["exports"], function (exports) {
-  "use strict";
+define('ember-basic-dropdown/components/basic-dropdown/content', ['exports', 'ember-wormhole/components/ember-wormhole', 'ember', 'ember-basic-dropdown/templates/components/basic-dropdown/content'], function (exports, _emberWormholeComponentsEmberWormhole, _ember, _emberBasicDropdownTemplatesComponentsBasicDropdownContent) {
+  'use strict';
 
-  exports["default"] = Ember.HTMLBars.template((function () {
-    return {
-      meta: {
-        "fragmentReason": {
-          "name": "triple-curlies"
-        },
-        "revision": "Ember@2.5.1",
-        "loc": {
-          "source": null,
-          "start": {
-            "line": 1,
-            "column": 0
-          },
-          "end": {
-            "line": 3,
-            "column": 6
+  var run = _ember['default'].run;
+
+  var MutObserver = self.window.MutationObserver || self.window.WebKitMutationObserver;
+  function waitForAnimations(element, callback) {
+    var computedStyle = self.window.getComputedStyle(element);
+    if (computedStyle.transitionDuration && computedStyle.transitionDuration !== '0s') {
+      (function () {
+        var eventCallback = function eventCallback() {
+          element.removeEventListener('transitionend', eventCallback);
+          callback();
+        };
+        element.addEventListener('transitionend', eventCallback);
+      })();
+    } else if (computedStyle.animationName !== 'none' && computedStyle.animationPlayState === 'running') {
+      (function () {
+        var eventCallback = function eventCallback() {
+          element.removeEventListener('animationend', eventCallback);
+          callback();
+        };
+        element.addEventListener('animationend', eventCallback);
+      })();
+    } else {
+      callback();
+    }
+  }
+
+  exports['default'] = _emberWormholeComponentsEmberWormhole['default'].extend({
+    layout: _emberBasicDropdownTemplatesComponentsBasicDropdownContent['default'],
+    hasMoved: false,
+    mutationObserver: null,
+    isTouchDevice: !!self.window && 'ontouchstart' in self.window,
+
+    // Lifecycle hooks
+    didInsertElement: function didInsertElement() {
+      this._super.apply(this, arguments);
+      var dropdown = self.window.document.getElementById(this.get('dropdownId'));
+      var appRoot = this.get('appRoot');
+
+      this.handleRootMouseDown = this.handleRootMouseDown.bind(this, dropdown);
+      this.touchStartHandler = this.touchStartHandler.bind(this);
+      this.touchMoveHandler = this.touchMoveHandler.bind(this);
+
+      appRoot.addEventListener('mousedown', this.handleRootMouseDown, true);
+
+      if (this.get('isTouchDevice')) {
+        appRoot.addEventListener('touchstart', this.touchStartHandler, true);
+        appRoot.addEventListener('touchend', this.handleRootMouseDown, true);
+      }
+
+      if (!this.get('renderInPlace')) {
+        dropdown.addEventListener('focusin', this.get('onFocusIn'));
+        dropdown.addEventListener('focusout', this.get('onFocusOut'));
+        this.addGlobalEvents(dropdown);
+      }
+      run.scheduleOnce('actions', this.get('reposition'));
+      if (this.get('animationEnabled')) {
+        run.scheduleOnce('actions', this, this.animateIn, dropdown);
+      }
+    },
+
+    willDestroyElement: function willDestroyElement() {
+      this._super.apply(this, arguments);
+      var dropdown = self.window.document.getElementById(this.get('dropdownId'));
+      var appRoot = this.get('appRoot');
+
+      appRoot.removeEventListener('mousedown', this.handleRootMouseDown, true);
+
+      if (this.get('isTouchDevice')) {
+        appRoot.removeEventListener('touchstart', this.touchStartHandler, true);
+        appRoot.removeEventListener('touchend', this.handleRootMouseDown, true);
+      }
+
+      this.removeGlobalEvents(dropdown);
+      if (this.get('animationEnabled')) {
+        this.animateOut(dropdown);
+      }
+    },
+
+    // Methods
+    animateIn: function animateIn(dropdown) {
+      var _this = this;
+
+      this.set('transitionClass', 'ember-basic-dropdown--transitioning-in');
+      waitForAnimations(dropdown, function () {
+        return _this.set('ember-basic-dropdown--transitioned-in');
+      });
+    },
+
+    animateOut: function animateOut(dropdown) {
+      var parentElement = this.get('renderInPlace') ? dropdown.parentElement.parentElement : dropdown.parentElement;
+      var clone = dropdown.cloneNode(true);
+      clone.id = clone.id + '--clone';
+      var $clone = _ember['default'].$(clone);
+      $clone.removeClass('ember-basic-dropdown--transitioned-in');
+      $clone.removeClass('ember-basic-dropdown--transitioning-in');
+      $clone.addClass('ember-basic-dropdown--transitioning-out');
+      parentElement.appendChild(clone);
+      waitForAnimations(clone, function () {
+        parentElement.removeChild(clone);
+      });
+    },
+
+    handleRootMouseDown: function handleRootMouseDown(dropdownContent, e) {
+      if (this.hasMoved) {
+        this.hasMoved = false;
+        return;
+      }
+      var comesFromInside = (this.element ? this.element.parentElement.contains(e.target) : false) || dropdownContent.contains(e.target);
+      if (comesFromInside) {
+        return;
+      }
+      var closestDDcontent = _ember['default'].$(e.target).closest('.ember-basic-dropdown-content')[0];
+      if (closestDDcontent) {
+        var closestDropdownId = closestDDcontent.id.match(/ember\d+$/)[0];
+        var clickedOnNestedDropdown = !!dropdownContent.querySelector('#' + closestDropdownId);
+        if (clickedOnNestedDropdown) {
+          return;
+        }
+      }
+      this.get('close')(e, true);
+    },
+
+    addGlobalEvents: function addGlobalEvents(dropdown) {
+      var reposition = this.get('reposition');
+      self.window.addEventListener('scroll', reposition);
+      self.window.addEventListener('resize', reposition);
+      self.window.addEventListener('orientationchange', reposition);
+      if (MutObserver) {
+        this.mutationObserver = new MutObserver(function (mutations) {
+          if (mutations[0].addedNodes.length || mutations[0].removedNodes.length) {
+            reposition();
           }
-        },
-        "moduleName": "modules/ember-basic-dropdown/templates/components/basic-dropdown/content.hbs"
-      },
-      isEmpty: false,
-      arity: 0,
-      cachedFragment: null,
-      hasRendered: false,
-      buildFragment: function buildFragment(dom) {
-        var el0 = dom.createDocumentFragment();
-        var el1 = dom.createElement("div");
-        var el2 = dom.createTextNode("\n  ");
-        dom.appendChild(el1, el2);
-        var el2 = dom.createComment("");
-        dom.appendChild(el1, el2);
-        var el2 = dom.createTextNode("\n");
-        dom.appendChild(el1, el2);
-        dom.appendChild(el0, el1);
-        return el0;
-      },
-      buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-        var element0 = dom.childAt(fragment, [0]);
-        var morphs = new Array(4);
-        morphs[0] = dom.createAttrMorph(element0, 'id');
-        morphs[1] = dom.createAttrMorph(element0, 'class');
-        morphs[2] = dom.createAttrMorph(element0, 'dir');
-        morphs[3] = dom.createMorphAt(element0, 1, 1);
-        return morphs;
-      },
-      statements: [["attribute", "id", ["get", "dropdownId", ["loc", [null, [1, 10], [1, 20]]]]], ["attribute", "class", ["concat", ["ember-basic-dropdown-content ", ["get", "transitionClass", ["loc", [null, [1, 61], [1, 76]]]], " ", ["get", "dropdownClass", ["loc", [null, [1, 81], [1, 94]]]], " ", ["get", "verticalPositionClass", ["loc", [null, [1, 99], [1, 120]]]], " ", ["get", "horizontalPositionClass", ["loc", [null, [1, 125], [1, 148]]]]]]], ["attribute", "dir", ["get", "dir", ["loc", [null, [1, 158], [1, 161]]]]], ["content", "yield", ["loc", [null, [2, 2], [2, 11]]]]],
-      locals: [],
-      templates: []
-    };
-  })());
+        });
+        this.mutationObserver.observe(dropdown, { childList: true, subtree: true });
+      } else {
+        dropdown.addEventListener('DOMNodeInserted', reposition, false);
+        dropdown.addEventListener('DOMNodeRemoved', reposition, false);
+      }
+    },
+
+    removeGlobalEvents: function removeGlobalEvents(dropdown) {
+      var reposition = this.get('reposition');
+      self.window.removeEventListener('scroll', reposition);
+      self.window.removeEventListener('resize', reposition);
+      self.window.removeEventListener('orientationchange', reposition);
+      if (MutObserver) {
+        if (this.mutationObserver) {
+          this.mutationObserver.disconnect();
+          this.mutationObserver = null;
+        }
+      } else {
+        dropdown.removeEventListener('DOMNodeInserted', reposition);
+        dropdown.removeEventListener('DOMNodeRemoved', reposition);
+      }
+    },
+
+    touchMoveHandler: function touchMoveHandler() {
+      this.hasMoved = true;
+      this.get('appRoot').removeEventListener('touchmove', this.touchMoveHandler, true);
+    },
+
+    touchStartHandler: function touchStartHandler() {
+      this.get('appRoot').addEventListener('touchmove', this.touchMoveHandler, true);
+    }
+  });
 });
 define("ember-basic-dropdown/templates/components/basic-dropdown", ["exports"], function (exports) {
   "use strict";
@@ -70359,6 +70380,60 @@ define("ember-basic-dropdown/templates/components/basic-dropdown", ["exports"], 
       statements: [["attribute", "class", ["concat", ["ember-basic-dropdown-trigger ", ["get", "triggerClass", ["loc", [null, [1, 43], [1, 55]]]]]]], ["attribute", "aria-controls", ["get", "dropdownId", ["loc", [null, [2, 18], [2, 28]]]]], ["attribute", "aria-describedby", ["get", "ariaDescribedBy", ["loc", [null, [3, 21], [3, 36]]]]], ["attribute", "aria-disabled", ["get", "disabled", ["loc", [null, [4, 18], [4, 26]]]]], ["attribute", "aria-expanded", ["get", "publicAPI.isOpen", ["loc", [null, [5, 18], [5, 34]]]]], ["attribute", "aria-invalid", ["get", "ariaInvalid", ["loc", [null, [7, 17], [7, 28]]]]], ["attribute", "aria-label", ["get", "ariaLabel", ["loc", [null, [8, 15], [8, 24]]]]], ["attribute", "aria-labelledby", ["get", "ariaLabelledBy", ["loc", [null, [9, 20], [9, 34]]]]], ["attribute", "aria-pressed", ["get", "publicAPI.isOpen", ["loc", [null, [10, 17], [10, 33]]]]], ["attribute", "aria-required", ["get", "ariaRequired", ["loc", [null, [11, 18], [11, 30]]]]], ["attribute", "id", ["get", "triggerId", ["loc", [null, [12, 7], [12, 16]]]]], ["attribute", "onfocus", ["subexpr", "action", ["handleFocus"], [], ["loc", [null, [13, 10], [13, 34]]]]], ["attribute", "onkeydown", ["subexpr", "action", ["keydown"], [], ["loc", [null, [14, 12], [14, 32]]]]], ["attribute", "role", ["get", "role", ["loc", [null, [15, 9], [15, 13]]]]], ["attribute", "tabindex", ["get", "tabIndex", ["loc", [null, [16, 13], [16, 21]]]]], ["inline", "yield", [], ["to", "inverse"], ["loc", [null, [17, 2], [17, 24]]]], ["block", "if", [["get", "publicAPI.isOpen", ["loc", [null, [19, 6], [19, 22]]]]], [], 0, null, ["loc", [null, [19, 0], [36, 7]]]]],
       locals: [],
       templates: [child0]
+    };
+  })());
+});
+define("ember-basic-dropdown/templates/components/basic-dropdown/content", ["exports"], function (exports) {
+  "use strict";
+
+  exports["default"] = Ember.HTMLBars.template((function () {
+    return {
+      meta: {
+        "fragmentReason": {
+          "name": "triple-curlies"
+        },
+        "revision": "Ember@2.5.1",
+        "loc": {
+          "source": null,
+          "start": {
+            "line": 1,
+            "column": 0
+          },
+          "end": {
+            "line": 3,
+            "column": 6
+          }
+        },
+        "moduleName": "modules/ember-basic-dropdown/templates/components/basic-dropdown/content.hbs"
+      },
+      isEmpty: false,
+      arity: 0,
+      cachedFragment: null,
+      hasRendered: false,
+      buildFragment: function buildFragment(dom) {
+        var el0 = dom.createDocumentFragment();
+        var el1 = dom.createElement("div");
+        var el2 = dom.createTextNode("\n  ");
+        dom.appendChild(el1, el2);
+        var el2 = dom.createComment("");
+        dom.appendChild(el1, el2);
+        var el2 = dom.createTextNode("\n");
+        dom.appendChild(el1, el2);
+        dom.appendChild(el0, el1);
+        return el0;
+      },
+      buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+        var element0 = dom.childAt(fragment, [0]);
+        var morphs = new Array(4);
+        morphs[0] = dom.createAttrMorph(element0, 'id');
+        morphs[1] = dom.createAttrMorph(element0, 'class');
+        morphs[2] = dom.createAttrMorph(element0, 'dir');
+        morphs[3] = dom.createMorphAt(element0, 1, 1);
+        return morphs;
+      },
+      statements: [["attribute", "id", ["get", "dropdownId", ["loc", [null, [1, 10], [1, 20]]]]], ["attribute", "class", ["concat", ["ember-basic-dropdown-content ", ["get", "transitionClass", ["loc", [null, [1, 61], [1, 76]]]], " ", ["get", "dropdownClass", ["loc", [null, [1, 81], [1, 94]]]], " ", ["get", "verticalPositionClass", ["loc", [null, [1, 99], [1, 120]]]], " ", ["get", "horizontalPositionClass", ["loc", [null, [1, 125], [1, 148]]]]]]], ["attribute", "dir", ["get", "dir", ["loc", [null, [1, 158], [1, 161]]]]], ["content", "yield", ["loc", [null, [2, 2], [2, 11]]]]],
+      locals: [],
+      templates: []
     };
   })());
 });
@@ -70703,6 +70778,16 @@ define("ember-cli-toggle/components/x-toggle/template", ["exports"], function (e
       templates: [child0, child1]
     };
   })());
+});
+define("ember-data/-private/adapters", ["exports", "ember-data/adapters/json-api", "ember-data/adapters/rest"], function (exports, _emberDataAdaptersJsonApi, _emberDataAdaptersRest) {
+  /**
+    @module ember-data
+  */
+
+  "use strict";
+
+  exports.JSONAPIAdapter = _emberDataAdaptersJsonApi["default"];
+  exports.RESTAdapter = _emberDataAdaptersRest["default"];
 });
 define('ember-data/-private/adapters/build-url-mixin', ['exports', 'ember'], function (exports, _ember) {
   'use strict';
@@ -71174,16 +71259,6 @@ define('ember-data/-private/adapters/errors', ['exports', 'ember', 'ember-data/-
     return out;
   }
 });
-define("ember-data/-private/adapters", ["exports", "ember-data/adapters/json-api", "ember-data/adapters/rest"], function (exports, _emberDataAdaptersJsonApi, _emberDataAdaptersRest) {
-  /**
-    @module ember-data
-  */
-
-  "use strict";
-
-  exports.JSONAPIAdapter = _emberDataAdaptersJsonApi["default"];
-  exports.RESTAdapter = _emberDataAdaptersRest["default"];
-});
 define('ember-data/-private/core', ['exports', 'ember', 'ember-data/version'], function (exports, _ember, _emberDataVersion) {
   'use strict';
 
@@ -71588,6 +71663,15 @@ define('ember-data/-private/system/container-proxy', ['exports', 'ember-data/-pr
     }
   };
 });
+define("ember-data/-private/system/debug", ["exports", "ember-data/-private/system/debug/debug-adapter"], function (exports, _emberDataPrivateSystemDebugDebugAdapter) {
+  /**
+    @module ember-data
+  */
+
+  "use strict";
+
+  exports["default"] = _emberDataPrivateSystemDebugDebugAdapter["default"];
+});
 define('ember-data/-private/system/debug/debug-adapter', ['exports', 'ember', 'ember-data/model'], function (exports, _ember, _emberDataModel) {
   /**
     @module ember-data
@@ -71783,15 +71867,6 @@ define('ember-data/-private/system/debug/debug-info', ['exports', 'ember'], func
       };
     }
   });
-});
-define("ember-data/-private/system/debug", ["exports", "ember-data/-private/system/debug/debug-adapter"], function (exports, _emberDataPrivateSystemDebugDebugAdapter) {
-  /**
-    @module ember-data
-  */
-
-  "use strict";
-
-  exports["default"] = _emberDataPrivateSystemDebugDebugAdapter["default"];
 });
 define("ember-data/-private/system/empty-object", ["exports"], function (exports) {
   "use strict";
@@ -72127,6 +72202,18 @@ define("ember-data/-private/system/many-array", ["exports", "ember", "ember-data
       return record;
     }
   });
+});
+define("ember-data/-private/system/model", ["exports", "ember-data/-private/system/model/model", "ember-data/attr", "ember-data/-private/system/model/states", "ember-data/-private/system/model/errors"], function (exports, _emberDataPrivateSystemModelModel, _emberDataAttr, _emberDataPrivateSystemModelStates, _emberDataPrivateSystemModelErrors) {
+  /**
+    @module ember-data
+  */
+
+  "use strict";
+
+  exports.RootState = _emberDataPrivateSystemModelStates["default"];
+  exports.attr = _emberDataAttr["default"];
+  exports.Errors = _emberDataPrivateSystemModelErrors["default"];
+  exports["default"] = _emberDataPrivateSystemModelModel["default"];
 });
 define("ember-data/-private/system/model/attr", ["exports", "ember", "ember-data/-private/debug"], function (exports, _ember, _emberDataPrivateDebug) {
   "use strict";
@@ -73571,23 +73658,26 @@ define("ember-data/-private/system/model/internal-model", ["exports", "ember", "
     }
   };
 
-  InternalModel.prototype.referenceFor = function (type, name) {
-    var reference = this.references[name];
+  if (true) {
 
-    if (!reference) {
-      var relationship = this._relationships.get(name);
+    InternalModel.prototype.referenceFor = function (type, name) {
+      var reference = this.references[name];
 
-      if (type === "belongsTo") {
-        reference = new _emberDataPrivateSystemReferences.BelongsToReference(this.store, this, relationship);
-      } else if (type === "hasMany") {
-        reference = new _emberDataPrivateSystemReferences.HasManyReference(this.store, this, relationship);
+      if (!reference) {
+        var relationship = this._relationships.get(name);
+
+        if (type === "belongsTo") {
+          reference = new _emberDataPrivateSystemReferences.BelongsToReference(this.store, this, relationship);
+        } else if (type === "hasMany") {
+          reference = new _emberDataPrivateSystemReferences.HasManyReference(this.store, this, relationship);
+        }
+
+        this.references[name] = reference;
       }
 
-      this.references[name] = reference;
-    }
-
-    return reference;
-  };
+      return reference;
+    };
+  }
 });
 define("ember-data/-private/system/model/model", ["exports", "ember", "ember-data/-private/debug", "ember-data/-private/system/promise-proxies", "ember-data/-private/system/model/errors", "ember-data/-private/features", "ember-data/-private/system/debug/debug-info", "ember-data/-private/system/relationships/belongs-to", "ember-data/-private/system/relationships/has-many", "ember-data/-private/system/relationships/ext", "ember-data/-private/system/model/attr"], function (exports, _ember, _emberDataPrivateDebug, _emberDataPrivateSystemPromiseProxies, _emberDataPrivateSystemModelErrors, _emberDataPrivateFeatures, _emberDataPrivateSystemDebugDebugInfo, _emberDataPrivateSystemRelationshipsBelongsTo, _emberDataPrivateSystemRelationshipsHasMany, _emberDataPrivateSystemRelationshipsExt, _emberDataPrivateSystemModelAttr) {
   "use strict";
@@ -74346,105 +74436,108 @@ define("ember-data/-private/system/model/model", ["exports", "ember", "ember-dat
     });
   }
 
-  Model.reopen({
+  if (true) {
 
-    /**
-      Get the reference for the specified belongsTo relationship.
-       Example
-       ```javascript
-      // models/blog.js
-      export default DS.Model.extend({
-        user: DS.belongsTo({ async: true })
-      });
-       store.push({
-        type: 'blog',
-        id: 1,
-        relationships: {
-          user: { type: 'user', id: 1 }
-        }
-      });
-      var userRef = blog.belongsTo('user');
-       // check if the user relationship is loaded
-      var isLoaded = userRef.value() !== null;
-       // get the record of the reference (null if not yet available)
-      var user = userRef.value();
-       // get the identifier of the reference
-      if (userRef.remoteType() === "id") {
-        var id = userRef.id();
-      } else if (userRef.remoteType() === "link") {
-        var link = userRef.link();
-      }
-       // load user (via store.findRecord or store.findBelongsTo)
-      userRef.load().then(...)
-       // or trigger a reload
-      userRef.reload().then(...)
-       // provide data for reference
-      userRef.push({
-        type: 'user',
-        id: 1,
-        attributes: {
-          username: "@user"
-        }
-      }).then(function(user) {
-        userRef.value() === user;
-      });
-      ```
-       @method belongsTo
-      @param {String} name of the relationship
-      @return {BelongsToReference} reference for this relationship
-    */
-    belongsTo: function belongsTo(name) {
-      return this._internalModel.referenceFor('belongsTo', name);
-    },
+    Model.reopen({
 
-    /**
-      Get the reference for the specified hasMany relationship.
-       Example
-       ```javascript
-      // models/blog.js
-      export default DS.Model.extend({
-        comments: DS.hasMany({ async: true })
-      });
-       store.push({
-        type: 'blog',
-        id: 1,
-        relationships: {
-          comments: {
-            data: [
-              { type: 'comment', id: 1 },
-              { type: 'comment', id: 2 }
-            ]
+      /**
+        Get the reference for the specified belongsTo relationship.
+         Example
+         ```javascript
+        // models/blog.js
+        export default DS.Model.extend({
+          user: DS.belongsTo({ async: true })
+        });
+         store.push({
+          type: 'blog',
+          id: 1,
+          relationships: {
+            user: { type: 'user', id: 1 }
           }
+        });
+        var userRef = blog.belongsTo('user');
+         // check if the user relationship is loaded
+        var isLoaded = userRef.value() !== null;
+         // get the record of the reference (null if not yet available)
+        var user = userRef.value();
+         // get the identifier of the reference
+        if (userRef.remoteType() === "id") {
+          var id = userRef.id();
+        } else if (userRef.remoteType() === "link") {
+          var link = userRef.link();
         }
-      });
-      var commentsRef = blog.hasMany('comments');
-       // check if the comments are loaded already
-      var isLoaded = commentsRef.value() !== null;
-       // get the records of the reference (null if not yet available)
-      var comments = commentsRef.value();
-       // get the identifier of the reference
-      if (commentsRef.remoteType() === "ids") {
-        var ids = commentsRef.ids();
-      } else if (commentsRef.remoteType() === "link") {
-        var link = commentsRef.link();
+         // load user (via store.findRecord or store.findBelongsTo)
+        userRef.load().then(...)
+         // or trigger a reload
+        userRef.reload().then(...)
+         // provide data for reference
+        userRef.push({
+          type: 'user',
+          id: 1,
+          attributes: {
+            username: "@user"
+          }
+        }).then(function(user) {
+          userRef.value() === user;
+        });
+        ```
+         @method belongsTo
+        @param {String} name of the relationship
+        @return {BelongsToReference} reference for this relationship
+      */
+      belongsTo: function belongsTo(name) {
+        return this._internalModel.referenceFor('belongsTo', name);
+      },
+
+      /**
+        Get the reference for the specified hasMany relationship.
+         Example
+         ```javascript
+        // models/blog.js
+        export default DS.Model.extend({
+          comments: DS.hasMany({ async: true })
+        });
+         store.push({
+          type: 'blog',
+          id: 1,
+          relationships: {
+            comments: {
+              data: [
+                { type: 'comment', id: 1 },
+                { type: 'comment', id: 2 }
+              ]
+            }
+          }
+        });
+        var commentsRef = blog.hasMany('comments');
+         // check if the comments are loaded already
+        var isLoaded = commentsRef.value() !== null;
+         // get the records of the reference (null if not yet available)
+        var comments = commentsRef.value();
+         // get the identifier of the reference
+        if (commentsRef.remoteType() === "ids") {
+          var ids = commentsRef.ids();
+        } else if (commentsRef.remoteType() === "link") {
+          var link = commentsRef.link();
+        }
+         // load comments (via store.findMany or store.findHasMany)
+        commentsRef.load().then(...)
+         // or trigger a reload
+        commentsRef.reload().then(...)
+         // provide data for reference
+        commentsRef.push([{ type: 'comment', id: 1 }, { type: 'comment', id: 2 }]).then(function(comments) {
+          commentsRef.value() === comments;
+        });
+        ```
+         @method hasMany
+        @param {String} name of the relationship
+        @return {HasManyReference} reference for this relationship
+      */
+      hasMany: function hasMany(name) {
+        return this._internalModel.referenceFor('hasMany', name);
       }
-       // load comments (via store.findMany or store.findHasMany)
-      commentsRef.load().then(...)
-       // or trigger a reload
-      commentsRef.reload().then(...)
-       // provide data for reference
-      commentsRef.push([{ type: 'comment', id: 1 }, { type: 'comment', id: 2 }]).then(function(comments) {
-        commentsRef.value() === comments;
-      });
-      ```
-       @method hasMany
-      @param {String} name of the relationship
-      @return {HasManyReference} reference for this relationship
-    */
-    hasMany: function hasMany(name) {
-      return this._internalModel.referenceFor('hasMany', name);
-    }
-  });
+    });
+  }
 
   Model.reopenClass(_emberDataPrivateSystemRelationshipsExt.RelationshipsClassMethodsMixin);
   Model.reopenClass(_emberDataPrivateSystemModelAttr.AttrClassMethodsMixin);
@@ -75218,18 +75311,6 @@ define('ember-data/-private/system/model/states', ['exports', 'ember', 'ember-da
 
   exports['default'] = RootState;
 });
-define("ember-data/-private/system/model", ["exports", "ember-data/-private/system/model/model", "ember-data/attr", "ember-data/-private/system/model/states", "ember-data/-private/system/model/errors"], function (exports, _emberDataPrivateSystemModelModel, _emberDataAttr, _emberDataPrivateSystemModelStates, _emberDataPrivateSystemModelErrors) {
-  /**
-    @module ember-data
-  */
-
-  "use strict";
-
-  exports.RootState = _emberDataPrivateSystemModelStates["default"];
-  exports.attr = _emberDataAttr["default"];
-  exports.Errors = _emberDataPrivateSystemModelErrors["default"];
-  exports["default"] = _emberDataPrivateSystemModelModel["default"];
-});
 define('ember-data/-private/system/normalize-link', ['exports'], function (exports) {
   'use strict';
 
@@ -75790,6 +75871,17 @@ define("ember-data/-private/system/record-array-manager", ["exports", "ember", "
     return false;
   }
 });
+define("ember-data/-private/system/record-arrays", ["exports", "ember-data/-private/system/record-arrays/record-array", "ember-data/-private/system/record-arrays/filtered-record-array", "ember-data/-private/system/record-arrays/adapter-populated-record-array"], function (exports, _emberDataPrivateSystemRecordArraysRecordArray, _emberDataPrivateSystemRecordArraysFilteredRecordArray, _emberDataPrivateSystemRecordArraysAdapterPopulatedRecordArray) {
+  /**
+    @module ember-data
+  */
+
+  "use strict";
+
+  exports.RecordArray = _emberDataPrivateSystemRecordArraysRecordArray["default"];
+  exports.FilteredRecordArray = _emberDataPrivateSystemRecordArraysFilteredRecordArray["default"];
+  exports.AdapterPopulatedRecordArray = _emberDataPrivateSystemRecordArraysAdapterPopulatedRecordArray["default"];
+});
 define("ember-data/-private/system/record-arrays/adapter-populated-record-array", ["exports", "ember", "ember-data/-private/system/record-arrays/record-array", "ember-data/-private/system/clone-null"], function (exports, _ember, _emberDataPrivateSystemRecordArraysRecordArray, _emberDataPrivateSystemCloneNull) {
   "use strict";
 
@@ -76120,16 +76212,12 @@ define("ember-data/-private/system/record-arrays/record-array", ["exports", "emb
     }
   });
 });
-define("ember-data/-private/system/record-arrays", ["exports", "ember-data/-private/system/record-arrays/record-array", "ember-data/-private/system/record-arrays/filtered-record-array", "ember-data/-private/system/record-arrays/adapter-populated-record-array"], function (exports, _emberDataPrivateSystemRecordArraysRecordArray, _emberDataPrivateSystemRecordArraysFilteredRecordArray, _emberDataPrivateSystemRecordArraysAdapterPopulatedRecordArray) {
-  /**
-    @module ember-data
-  */
+define('ember-data/-private/system/references', ['exports', 'ember-data/-private/system/references/record', 'ember-data/-private/system/references/belongs-to', 'ember-data/-private/system/references/has-many'], function (exports, _emberDataPrivateSystemReferencesRecord, _emberDataPrivateSystemReferencesBelongsTo, _emberDataPrivateSystemReferencesHasMany) {
+  'use strict';
 
-  "use strict";
-
-  exports.RecordArray = _emberDataPrivateSystemRecordArraysRecordArray["default"];
-  exports.FilteredRecordArray = _emberDataPrivateSystemRecordArraysFilteredRecordArray["default"];
-  exports.AdapterPopulatedRecordArray = _emberDataPrivateSystemRecordArraysAdapterPopulatedRecordArray["default"];
+  exports.RecordReference = _emberDataPrivateSystemReferencesRecord['default'];
+  exports.BelongsToReference = _emberDataPrivateSystemReferencesBelongsTo['default'];
+  exports.HasManyReference = _emberDataPrivateSystemReferencesHasMany['default'];
 });
 define('ember-data/-private/system/references/belongs-to', ['exports', 'ember-data/model', 'ember', 'ember-data/-private/system/references/reference', 'ember-data/-private/debug'], function (exports, _emberDataModel, _ember, _emberDataPrivateSystemReferencesReference, _emberDataPrivateDebug) {
   'use strict';
@@ -76390,13 +76478,6 @@ define("ember-data/-private/system/references/reference", ["exports"], function 
   };
 
   exports["default"] = Reference;
-});
-define('ember-data/-private/system/references', ['exports', 'ember-data/-private/system/references/record', 'ember-data/-private/system/references/belongs-to', 'ember-data/-private/system/references/has-many'], function (exports, _emberDataPrivateSystemReferencesRecord, _emberDataPrivateSystemReferencesBelongsTo, _emberDataPrivateSystemReferencesHasMany) {
-  'use strict';
-
-  exports.RecordReference = _emberDataPrivateSystemReferencesRecord['default'];
-  exports.BelongsToReference = _emberDataPrivateSystemReferencesBelongsTo['default'];
-  exports.HasManyReference = _emberDataPrivateSystemReferencesHasMany['default'];
 });
 define('ember-data/-private/system/relationship-meta', ['exports', 'ember-inflector', 'ember-data/-private/system/normalize-model-name'], function (exports, _emberInflector, _emberDataPrivateSystemNormalizeModelName) {
   'use strict';
@@ -78114,7 +78195,9 @@ define('ember-data/-private/system/snapshot-record-array', ['exports', 'ember-da
     */
     this.adapterOptions = options.adapterOptions;
 
-    this.include = options.include;
+    if (true) {
+      this.include = options.include;
+    }
   }
 
   /**
@@ -78179,7 +78262,9 @@ define('ember-data/-private/system/snapshot', ['exports', 'ember', 'ember-data/-
     */
     this.adapterOptions = options.adapterOptions;
 
-    this.include = options.include;
+    if (true) {
+      this.include = options.include;
+    }
 
     this._changedAttributes = record.changedAttributes();
   }
@@ -78459,439 +78544,6 @@ define('ember-data/-private/system/snapshot', ['exports', 'ember', 'ember-data/-
       return this.record.store.serializerFor(this.modelName).serialize(this, options);
     }
   };
-});
-define('ember-data/-private/system/store/common', ['exports', 'ember'], function (exports, _ember) {
-  'use strict';
-
-  exports._bind = _bind;
-  exports._guard = _guard;
-  exports._objectIsAlive = _objectIsAlive;
-
-  var get = _ember['default'].get;
-
-  function _bind(fn) {
-    var args = Array.prototype.slice.call(arguments, 1);
-
-    return function () {
-      return fn.apply(undefined, args);
-    };
-  }
-
-  function _guard(promise, test) {
-    var guarded = promise['finally'](function () {
-      if (!test()) {
-        guarded._subscribers.length = 0;
-      }
-    });
-
-    return guarded;
-  }
-
-  function _objectIsAlive(object) {
-    return !(get(object, "isDestroyed") || get(object, "isDestroying"));
-  }
-});
-define('ember-data/-private/system/store/container-instance-cache', ['exports', 'ember', 'ember-data/-private/system/empty-object'], function (exports, _ember, _emberDataPrivateSystemEmptyObject) {
-  'use strict';
-
-  exports['default'] = ContainerInstanceCache;
-
-  var assign = _ember['default'].assign || _ember['default'].merge;
-
-  /**
-   * The `ContainerInstanceCache` serves as a lazy cache for looking up
-   * instances of serializers and adapters. It has some additional logic for
-   * finding the 'fallback' adapter or serializer.
-   *
-   * The 'fallback' adapter or serializer is an adapter or serializer that is looked up
-   * when the preferred lookup fails. For example, say you try to look up `adapter:post`,
-   * but there is no entry (app/adapters/post.js in EmberCLI) for `adapter:post` in the registry.
-   *
-   * The `fallbacks` array passed will then be used; the first entry in the fallbacks array
-   * that exists in the container will then be cached for `adapter:post`. So, the next time you
-   * look up `adapter:post`, you'll get the `adapter:application` instance (or whatever the fallback
-   * was if `adapter:application` doesn't exist).
-   *
-   * @private
-   * @class ContainerInstanceCache
-   *
-  */
-  function ContainerInstanceCache(owner) {
-    this._owner = owner;
-    this._cache = new _emberDataPrivateSystemEmptyObject['default']();
-  }
-
-  ContainerInstanceCache.prototype = new _emberDataPrivateSystemEmptyObject['default']();
-
-  assign(ContainerInstanceCache.prototype, {
-    get: function get(type, preferredKey, fallbacks) {
-      var cache = this._cache;
-      var preferredLookupKey = type + ':' + preferredKey;
-
-      if (!(preferredLookupKey in cache)) {
-        var instance = this.instanceFor(preferredLookupKey) || this._findInstance(type, fallbacks);
-        if (instance) {
-          cache[preferredLookupKey] = instance;
-        }
-      }
-      return cache[preferredLookupKey];
-    },
-
-    _findInstance: function _findInstance(type, fallbacks) {
-      for (var i = 0, _length = fallbacks.length; i < _length; i++) {
-        var fallback = fallbacks[i];
-        var lookupKey = type + ':' + fallback;
-        var instance = this.instanceFor(lookupKey);
-
-        if (instance) {
-          return instance;
-        }
-      }
-    },
-
-    instanceFor: function instanceFor(key) {
-      var cache = this._cache;
-      if (!cache[key]) {
-        var instance = this._owner.lookup(key);
-        if (instance) {
-          cache[key] = instance;
-        }
-      }
-      return cache[key];
-    },
-
-    destroy: function destroy() {
-      var cache = this._cache;
-      var cacheEntries = Object.keys(cache);
-
-      for (var i = 0, _length2 = cacheEntries.length; i < _length2; i++) {
-        var cacheKey = cacheEntries[i];
-        var cacheEntry = cache[cacheKey];
-        if (cacheEntry) {
-          cacheEntry.destroy();
-        }
-      }
-      this._owner = null;
-    },
-
-    constructor: ContainerInstanceCache,
-
-    toString: function toString() {
-      return 'ContainerInstanceCache';
-    }
-  });
-});
-define("ember-data/-private/system/store/finders", ["exports", "ember", "ember-data/-private/debug", "ember-data/-private/system/store/common", "ember-data/-private/system/store/serializer-response", "ember-data/-private/system/store/serializers"], function (exports, _ember, _emberDataPrivateDebug, _emberDataPrivateSystemStoreCommon, _emberDataPrivateSystemStoreSerializerResponse, _emberDataPrivateSystemStoreSerializers) {
-  "use strict";
-
-  exports._find = _find;
-  exports._findMany = _findMany;
-  exports._findHasMany = _findHasMany;
-  exports._findBelongsTo = _findBelongsTo;
-  exports._findAll = _findAll;
-  exports._query = _query;
-  exports._queryRecord = _queryRecord;
-
-  var Promise = _ember["default"].RSVP.Promise;
-
-  function payloadIsNotBlank(adapterPayload) {
-    if (_ember["default"].isArray(adapterPayload)) {
-      return true;
-    } else {
-      return Object.keys(adapterPayload || {}).length;
-    }
-  }
-
-  function _find(adapter, store, typeClass, id, internalModel, options) {
-    var snapshot = internalModel.createSnapshot(options);
-    var promise = adapter.findRecord(store, typeClass, id, snapshot);
-    var serializer = (0, _emberDataPrivateSystemStoreSerializers.serializerForAdapter)(store, adapter, internalModel.type.modelName);
-    var label = "DS: Handle Adapter#findRecord of " + typeClass + " with id: " + id;
-
-    promise = Promise.resolve(promise, label);
-    promise = (0, _emberDataPrivateSystemStoreCommon._guard)(promise, (0, _emberDataPrivateSystemStoreCommon._bind)(_emberDataPrivateSystemStoreCommon._objectIsAlive, store));
-
-    return promise.then(function (adapterPayload) {
-      (0, _emberDataPrivateDebug.assert)("You made a `findRecord` request for a " + typeClass.typeClassKey + " with id " + id + ", but the adapter's response did not have any data", payloadIsNotBlank(adapterPayload));
-      return store._adapterRun(function () {
-        var payload = (0, _emberDataPrivateSystemStoreSerializerResponse.normalizeResponseHelper)(serializer, store, typeClass, adapterPayload, id, 'findRecord');
-        (0, _emberDataPrivateDebug.assert)('Ember Data expected the primary data returned from a `findRecord` response to be an object but instead it found an array.', !Array.isArray(payload.data));
-        //TODO Optimize
-        var record = store.push(payload);
-        return record._internalModel;
-      });
-    }, function (error) {
-      internalModel.notFound();
-      if (internalModel.isEmpty()) {
-        internalModel.unloadRecord();
-      }
-
-      throw error;
-    }, "DS: Extract payload of '" + typeClass + "'");
-  }
-
-  function _findMany(adapter, store, typeClass, ids, internalModels) {
-    var snapshots = _ember["default"].A(internalModels).invoke('createSnapshot');
-    var promise = adapter.findMany(store, typeClass, ids, snapshots);
-    var serializer = (0, _emberDataPrivateSystemStoreSerializers.serializerForAdapter)(store, adapter, typeClass.modelName);
-    var label = "DS: Handle Adapter#findMany of " + typeClass;
-
-    if (promise === undefined) {
-      throw new Error('adapter.findMany returned undefined, this was very likely a mistake');
-    }
-
-    promise = Promise.resolve(promise, label);
-    promise = (0, _emberDataPrivateSystemStoreCommon._guard)(promise, (0, _emberDataPrivateSystemStoreCommon._bind)(_emberDataPrivateSystemStoreCommon._objectIsAlive, store));
-
-    return promise.then(function (adapterPayload) {
-      (0, _emberDataPrivateDebug.assert)("You made a `findMany` request for a " + typeClass.typeClassKey + " with ids " + ids + ", but the adapter's response did not have any data", payloadIsNotBlank(adapterPayload));
-      return store._adapterRun(function () {
-        var payload = (0, _emberDataPrivateSystemStoreSerializerResponse.normalizeResponseHelper)(serializer, store, typeClass, adapterPayload, null, 'findMany');
-        //TODO Optimize, no need to materialize here
-        var records = store.push(payload);
-        var internalModels = new Array(records.length);
-
-        for (var i = 0; i < records.length; i++) {
-          internalModels[i] = records[i]._internalModel;
-        }
-
-        return internalModels;
-      });
-    }, null, "DS: Extract payload of " + typeClass);
-  }
-
-  function _findHasMany(adapter, store, internalModel, link, relationship) {
-    var snapshot = internalModel.createSnapshot();
-    var typeClass = store.modelFor(relationship.type);
-    var promise = adapter.findHasMany(store, snapshot, link, relationship);
-    var serializer = (0, _emberDataPrivateSystemStoreSerializers.serializerForAdapter)(store, adapter, relationship.type);
-    var label = "DS: Handle Adapter#findHasMany of " + internalModel + " : " + relationship.type;
-
-    promise = Promise.resolve(promise, label);
-    promise = (0, _emberDataPrivateSystemStoreCommon._guard)(promise, (0, _emberDataPrivateSystemStoreCommon._bind)(_emberDataPrivateSystemStoreCommon._objectIsAlive, store));
-    promise = (0, _emberDataPrivateSystemStoreCommon._guard)(promise, (0, _emberDataPrivateSystemStoreCommon._bind)(_emberDataPrivateSystemStoreCommon._objectIsAlive, internalModel));
-
-    return promise.then(function (adapterPayload) {
-      (0, _emberDataPrivateDebug.assert)("You made a `findHasMany` request for a " + internalModel.modelName + "'s `" + relationship.key + "` relationship, using link " + link + ", but the adapter's response did not have any data", payloadIsNotBlank(adapterPayload));
-      return store._adapterRun(function () {
-        var payload = (0, _emberDataPrivateSystemStoreSerializerResponse.normalizeResponseHelper)(serializer, store, typeClass, adapterPayload, null, 'findHasMany');
-        //TODO Use a non record creating push
-        var records = store.push(payload);
-        var recordArray = records.map(function (record) {
-          return record._internalModel;
-        });
-        recordArray.meta = payload.meta;
-        return recordArray;
-      });
-    }, null, "DS: Extract payload of " + internalModel + " : hasMany " + relationship.type);
-  }
-
-  function _findBelongsTo(adapter, store, internalModel, link, relationship) {
-    var snapshot = internalModel.createSnapshot();
-    var typeClass = store.modelFor(relationship.type);
-    var promise = adapter.findBelongsTo(store, snapshot, link, relationship);
-    var serializer = (0, _emberDataPrivateSystemStoreSerializers.serializerForAdapter)(store, adapter, relationship.type);
-    var label = "DS: Handle Adapter#findBelongsTo of " + internalModel + " : " + relationship.type;
-
-    promise = Promise.resolve(promise, label);
-    promise = (0, _emberDataPrivateSystemStoreCommon._guard)(promise, (0, _emberDataPrivateSystemStoreCommon._bind)(_emberDataPrivateSystemStoreCommon._objectIsAlive, store));
-    promise = (0, _emberDataPrivateSystemStoreCommon._guard)(promise, (0, _emberDataPrivateSystemStoreCommon._bind)(_emberDataPrivateSystemStoreCommon._objectIsAlive, internalModel));
-
-    return promise.then(function (adapterPayload) {
-      return store._adapterRun(function () {
-        var payload = (0, _emberDataPrivateSystemStoreSerializerResponse.normalizeResponseHelper)(serializer, store, typeClass, adapterPayload, null, 'findBelongsTo');
-
-        if (!payload.data) {
-          return null;
-        }
-
-        //TODO Optimize
-        var record = store.push(payload);
-        return record._internalModel;
-      });
-    }, null, "DS: Extract payload of " + internalModel + " : " + relationship.type);
-  }
-
-  function _findAll(adapter, store, typeClass, sinceToken, options) {
-    var modelName = typeClass.modelName;
-    var recordArray = store.peekAll(modelName);
-    var snapshotArray = recordArray.createSnapshot(options);
-    var promise = adapter.findAll(store, typeClass, sinceToken, snapshotArray);
-    var serializer = (0, _emberDataPrivateSystemStoreSerializers.serializerForAdapter)(store, adapter, modelName);
-    var label = "DS: Handle Adapter#findAll of " + typeClass;
-
-    promise = Promise.resolve(promise, label);
-    promise = (0, _emberDataPrivateSystemStoreCommon._guard)(promise, (0, _emberDataPrivateSystemStoreCommon._bind)(_emberDataPrivateSystemStoreCommon._objectIsAlive, store));
-
-    return promise.then(function (adapterPayload) {
-      (0, _emberDataPrivateDebug.assert)("You made a `findAll` request for " + typeClass.typeClassKey + "records, but the adapter's response did not have any data", payloadIsNotBlank(adapterPayload));
-      store._adapterRun(function () {
-        var payload = (0, _emberDataPrivateSystemStoreSerializerResponse.normalizeResponseHelper)(serializer, store, typeClass, adapterPayload, null, 'findAll');
-        //TODO Optimize
-        store.push(payload);
-      });
-
-      store.didUpdateAll(typeClass);
-      return store.peekAll(modelName);
-    }, null, "DS: Extract payload of findAll " + typeClass);
-  }
-
-  function _query(adapter, store, typeClass, query, recordArray) {
-    var modelName = typeClass.modelName;
-    var promise = adapter.query(store, typeClass, query, recordArray);
-
-    var serializer = (0, _emberDataPrivateSystemStoreSerializers.serializerForAdapter)(store, adapter, modelName);
-    var label = "DS: Handle Adapter#query of " + typeClass;
-
-    promise = Promise.resolve(promise, label);
-    promise = (0, _emberDataPrivateSystemStoreCommon._guard)(promise, (0, _emberDataPrivateSystemStoreCommon._bind)(_emberDataPrivateSystemStoreCommon._objectIsAlive, store));
-
-    return promise.then(function (adapterPayload) {
-      var records, payload;
-      store._adapterRun(function () {
-        payload = (0, _emberDataPrivateSystemStoreSerializerResponse.normalizeResponseHelper)(serializer, store, typeClass, adapterPayload, null, 'query');
-        //TODO Optimize
-        records = store.push(payload);
-      });
-
-      (0, _emberDataPrivateDebug.assert)('The response to store.query is expected to be an array but it was a single record. Please wrap your response in an array or use `store.queryRecord` to query for a single record.', _ember["default"].isArray(records));
-      recordArray.loadRecords(records, payload);
-      return recordArray;
-    }, null, "DS: Extract payload of query " + typeClass);
-  }
-
-  function _queryRecord(adapter, store, typeClass, query) {
-    var modelName = typeClass.modelName;
-    var promise = adapter.queryRecord(store, typeClass, query);
-    var serializer = (0, _emberDataPrivateSystemStoreSerializers.serializerForAdapter)(store, adapter, modelName);
-    var label = "DS: Handle Adapter#queryRecord of " + typeClass;
-
-    promise = Promise.resolve(promise, label);
-    promise = (0, _emberDataPrivateSystemStoreCommon._guard)(promise, (0, _emberDataPrivateSystemStoreCommon._bind)(_emberDataPrivateSystemStoreCommon._objectIsAlive, store));
-
-    return promise.then(function (adapterPayload) {
-      (0, _emberDataPrivateDebug.assert)("You made a `queryRecord` request for " + typeClass.typeClassKey + "records, with query `" + query + "`, but the adapter's response did not have any data", payloadIsNotBlank(adapterPayload));
-      var record;
-      store._adapterRun(function () {
-        var payload = (0, _emberDataPrivateSystemStoreSerializerResponse.normalizeResponseHelper)(serializer, store, typeClass, adapterPayload, null, 'queryRecord');
-        //TODO Optimize
-        record = store.push(payload);
-      });
-
-      return record;
-    }, null, "DS: Extract payload of queryRecord " + typeClass);
-  }
-});
-define('ember-data/-private/system/store/serializer-response', ['exports', 'ember', 'ember-data/-private/debug'], function (exports, _ember, _emberDataPrivateDebug) {
-  'use strict';
-
-  exports.validateDocumentStructure = validateDocumentStructure;
-  exports.normalizeResponseHelper = normalizeResponseHelper;
-
-  /*
-    This is a helper method that validates a JSON API top-level document
-  
-    The format of a document is described here:
-    http://jsonapi.org/format/#document-top-level
-  
-    @method validateDocumentStructure
-    @param {Object} doc JSON API document
-    @return {array} An array of errors found in the document structure
-  */
-
-  function validateDocumentStructure(doc) {
-    var errors = [];
-    if (!doc || typeof doc !== 'object') {
-      errors.push('Top level of a JSON API document must be an object');
-    } else {
-      if (!('data' in doc) && !('errors' in doc) && !('meta' in doc)) {
-        errors.push('One or more of the following keys must be present: "data", "errors", "meta".');
-      } else {
-        if ('data' in doc && 'errors' in doc) {
-          errors.push('Top level keys "errors" and "data" cannot both be present in a JSON API document');
-        }
-      }
-      if ('data' in doc) {
-        if (!(doc.data === null || _ember['default'].isArray(doc.data) || typeof doc.data === 'object')) {
-          errors.push('data must be null, an object, or an array');
-        }
-      }
-      if ('meta' in doc) {
-        if (typeof doc.meta !== 'object') {
-          errors.push('meta must be an object');
-        }
-      }
-      if ('errors' in doc) {
-        if (!_ember['default'].isArray(doc.errors)) {
-          errors.push('errors must be an array');
-        }
-      }
-      if ('links' in doc) {
-        if (typeof doc.links !== 'object') {
-          errors.push('links must be an object');
-        }
-      }
-      if ('jsonapi' in doc) {
-        if (typeof doc.jsonapi !== 'object') {
-          errors.push('jsonapi must be an object');
-        }
-      }
-      if ('included' in doc) {
-        if (typeof doc.included !== 'object') {
-          errors.push('included must be an array');
-        }
-      }
-    }
-
-    return errors;
-  }
-
-  /*
-    This is a helper method that always returns a JSON-API Document.
-  
-    @method normalizeResponseHelper
-    @param {DS.Serializer} serializer
-    @param {DS.Store} store
-    @param {subclass of DS.Model} modelClass
-    @param {Object} payload
-    @param {String|Number} id
-    @param {String} requestType
-    @return {Object} JSON-API Document
-  */
-
-  function normalizeResponseHelper(serializer, store, modelClass, payload, id, requestType) {
-    var normalizedResponse = serializer.normalizeResponse(store, modelClass, payload, id, requestType);
-    var validationErrors = [];
-    (0, _emberDataPrivateDebug.runInDebug)(function () {
-      validationErrors = validateDocumentStructure(normalizedResponse);
-    });
-    (0, _emberDataPrivateDebug.assert)('normalizeResponse must return a valid JSON API document:\n\t* ' + validationErrors.join('\n\t* '), _ember['default'].isEmpty(validationErrors));
-
-    return normalizedResponse;
-  }
-});
-define("ember-data/-private/system/store/serializers", ["exports"], function (exports) {
-  "use strict";
-
-  exports.serializerForAdapter = serializerForAdapter;
-
-  function serializerForAdapter(store, adapter, type) {
-    var serializer = adapter.serializer;
-
-    if (serializer === undefined) {
-      serializer = store.serializerFor(type);
-    }
-
-    if (serializer === null || serializer === undefined) {
-      serializer = {
-        extract: function extract(store, type, payload) {
-          return payload;
-        }
-      };
-    }
-
-    return serializer;
-  }
 });
 define('ember-data/-private/system/store', ['exports', 'ember', 'ember-data/model', 'ember-data/-private/debug', 'ember-data/-private/system/normalize-link', 'ember-data/-private/system/normalize-model-name', 'ember-data/-private/adapters/errors', 'ember-data/-private/system/promise-proxies', 'ember-data/-private/system/store/common', 'ember-data/-private/system/store/serializer-response', 'ember-data/-private/system/store/serializers', 'ember-data/-private/system/store/finders', 'ember-data/-private/utils', 'ember-data/-private/system/coerce-id', 'ember-data/-private/system/record-array-manager', 'ember-data/-private/system/store/container-instance-cache', 'ember-data/-private/system/model/internal-model', 'ember-data/-private/system/empty-object', 'ember-data/-private/features'], function (exports, _ember, _emberDataModel, _emberDataPrivateDebug, _emberDataPrivateSystemNormalizeLink, _emberDataPrivateSystemNormalizeModelName, _emberDataPrivateAdaptersErrors, _emberDataPrivateSystemPromiseProxies, _emberDataPrivateSystemStoreCommon, _emberDataPrivateSystemStoreSerializerResponse, _emberDataPrivateSystemStoreSerializers, _emberDataPrivateSystemStoreFinders, _emberDataPrivateUtils, _emberDataPrivateSystemCoerceId, _emberDataPrivateSystemRecordArrayManager, _emberDataPrivateSystemStoreContainerInstanceCache, _emberDataPrivateSystemModelInternalModel, _emberDataPrivateSystemEmptyObject, _emberDataPrivateFeatures) {
   /**
@@ -80506,10 +80158,15 @@ define('ember-data/-private/system/store', ['exports', 'ember', 'ember-data/mode
         (0, _emberDataPrivateDebug.assert)('Passing classes to store methods has been removed. Please pass a dasherized string instead of ' + _ember['default'].inspect(modelName), typeof modelName === 'string');
         serializer = this.serializerFor(modelName);
       }
-
-      this._adapterRun(function () {
-        return serializer.pushPayload(_this3, payload);
-      });
+      if (false) {
+        return this._adapterRun(function () {
+          return serializer.pushPayload(_this3, payload);
+        });
+      } else {
+        this._adapterRun(function () {
+          return serializer.pushPayload(_this3, payload);
+        });
+      }
     },
 
     /**
@@ -80702,38 +80359,41 @@ define('ember-data/-private/system/store', ['exports', 'ember', 'ember-data/mode
 
   });
 
-  Store.reopen({
-    /**
-      Get the reference for the specified record.
-       Example
-       ```javascript
-      var userRef = store.getReference('user', 1);
-       // check if the user is loaded
-      var isLoaded = userRef.value() !== null;
-       // get the record of the reference (null if not yet available)
-      var user = userRef.value();
-       // get the identifier of the reference
-      if (userRef.remoteType() === "id") {
-      var id = userRef.id();
+  if (true) {
+
+    Store.reopen({
+      /**
+        Get the reference for the specified record.
+         Example
+         ```javascript
+        var userRef = store.getReference('user', 1);
+         // check if the user is loaded
+        var isLoaded = userRef.value() !== null;
+         // get the record of the reference (null if not yet available)
+        var user = userRef.value();
+         // get the identifier of the reference
+        if (userRef.remoteType() === "id") {
+        var id = userRef.id();
+        }
+         // load user (via store.find)
+        userRef.load().then(...)
+         // or trigger a reload
+        userRef.reload().then(...)
+         // provide data for reference
+        userRef.push({ id: 1, username: "@user" }).then(function(user) {
+          userRef.value() === user;
+        });
+      ```
+       @method getReference
+      @param {String} type
+      @param {String|Integer} id
+      @return {RecordReference}
+      */
+      getReference: function getReference(type, id) {
+        return this._internalModelForId(type, id).recordReference;
       }
-       // load user (via store.find)
-      userRef.load().then(...)
-       // or trigger a reload
-      userRef.reload().then(...)
-       // provide data for reference
-      userRef.push({ id: 1, username: "@user" }).then(function(user) {
-        userRef.value() === user;
-      });
-    ```
-     @method getReference
-    @param {String} type
-    @param {String|Integer} id
-    @return {RecordReference}
-    */
-    getReference: function getReference(type, id) {
-      return this._internalModelForId(type, id).recordReference;
-    }
-  });
+    });
+  }
 
   function deserializeRecordId(store, key, relationship, id) {
     if (isNone(id)) {
@@ -80867,6 +80527,448 @@ define('ember-data/-private/system/store', ['exports', 'ember', 'ember-data/mode
 
   exports.Store = Store;
   exports['default'] = Store;
+});
+define('ember-data/-private/system/store/common', ['exports', 'ember'], function (exports, _ember) {
+  'use strict';
+
+  exports._bind = _bind;
+  exports._guard = _guard;
+  exports._objectIsAlive = _objectIsAlive;
+
+  var get = _ember['default'].get;
+
+  function _bind(fn) {
+    var args = Array.prototype.slice.call(arguments, 1);
+
+    return function () {
+      return fn.apply(undefined, args);
+    };
+  }
+
+  function _guard(promise, test) {
+    var guarded = promise['finally'](function () {
+      if (!test()) {
+        guarded._subscribers.length = 0;
+      }
+    });
+
+    return guarded;
+  }
+
+  function _objectIsAlive(object) {
+    return !(get(object, "isDestroyed") || get(object, "isDestroying"));
+  }
+});
+define('ember-data/-private/system/store/container-instance-cache', ['exports', 'ember', 'ember-data/-private/system/empty-object'], function (exports, _ember, _emberDataPrivateSystemEmptyObject) {
+  'use strict';
+
+  exports['default'] = ContainerInstanceCache;
+
+  var assign = _ember['default'].assign || _ember['default'].merge;
+
+  /**
+   * The `ContainerInstanceCache` serves as a lazy cache for looking up
+   * instances of serializers and adapters. It has some additional logic for
+   * finding the 'fallback' adapter or serializer.
+   *
+   * The 'fallback' adapter or serializer is an adapter or serializer that is looked up
+   * when the preferred lookup fails. For example, say you try to look up `adapter:post`,
+   * but there is no entry (app/adapters/post.js in EmberCLI) for `adapter:post` in the registry.
+   *
+   * The `fallbacks` array passed will then be used; the first entry in the fallbacks array
+   * that exists in the container will then be cached for `adapter:post`. So, the next time you
+   * look up `adapter:post`, you'll get the `adapter:application` instance (or whatever the fallback
+   * was if `adapter:application` doesn't exist).
+   *
+   * @private
+   * @class ContainerInstanceCache
+   *
+  */
+  function ContainerInstanceCache(owner) {
+    this._owner = owner;
+    this._cache = new _emberDataPrivateSystemEmptyObject['default']();
+  }
+
+  ContainerInstanceCache.prototype = new _emberDataPrivateSystemEmptyObject['default']();
+
+  assign(ContainerInstanceCache.prototype, {
+    get: function get(type, preferredKey, fallbacks) {
+      var cache = this._cache;
+      var preferredLookupKey = type + ':' + preferredKey;
+
+      if (!(preferredLookupKey in cache)) {
+        var instance = this.instanceFor(preferredLookupKey) || this._findInstance(type, fallbacks);
+        if (instance) {
+          cache[preferredLookupKey] = instance;
+        }
+      }
+      return cache[preferredLookupKey];
+    },
+
+    _findInstance: function _findInstance(type, fallbacks) {
+      for (var i = 0, _length = fallbacks.length; i < _length; i++) {
+        var fallback = fallbacks[i];
+        var lookupKey = type + ':' + fallback;
+        var instance = this.instanceFor(lookupKey);
+
+        if (instance) {
+          return instance;
+        }
+      }
+    },
+
+    instanceFor: function instanceFor(key) {
+      var cache = this._cache;
+      if (!cache[key]) {
+        var instance = this._owner.lookup(key);
+        if (instance) {
+          cache[key] = instance;
+        }
+      }
+      return cache[key];
+    },
+
+    destroy: function destroy() {
+      var cache = this._cache;
+      var cacheEntries = Object.keys(cache);
+
+      for (var i = 0, _length2 = cacheEntries.length; i < _length2; i++) {
+        var cacheKey = cacheEntries[i];
+        var cacheEntry = cache[cacheKey];
+        if (cacheEntry) {
+          cacheEntry.destroy();
+        }
+      }
+      this._owner = null;
+    },
+
+    constructor: ContainerInstanceCache,
+
+    toString: function toString() {
+      return 'ContainerInstanceCache';
+    }
+  });
+});
+define("ember-data/-private/system/store/finders", ["exports", "ember", "ember-data/-private/debug", "ember-data/-private/system/store/common", "ember-data/-private/system/store/serializer-response", "ember-data/-private/system/store/serializers"], function (exports, _ember, _emberDataPrivateDebug, _emberDataPrivateSystemStoreCommon, _emberDataPrivateSystemStoreSerializerResponse, _emberDataPrivateSystemStoreSerializers) {
+  "use strict";
+
+  exports._find = _find;
+  exports._findMany = _findMany;
+  exports._findHasMany = _findHasMany;
+  exports._findBelongsTo = _findBelongsTo;
+  exports._findAll = _findAll;
+  exports._query = _query;
+  exports._queryRecord = _queryRecord;
+
+  var Promise = _ember["default"].RSVP.Promise;
+
+  function payloadIsNotBlank(adapterPayload) {
+    if (_ember["default"].isArray(adapterPayload)) {
+      return true;
+    } else {
+      return Object.keys(adapterPayload || {}).length;
+    }
+  }
+
+  function _find(adapter, store, typeClass, id, internalModel, options) {
+    var snapshot = internalModel.createSnapshot(options);
+    var promise = adapter.findRecord(store, typeClass, id, snapshot);
+    var serializer = (0, _emberDataPrivateSystemStoreSerializers.serializerForAdapter)(store, adapter, internalModel.type.modelName);
+    var label = "DS: Handle Adapter#findRecord of " + typeClass + " with id: " + id;
+
+    promise = Promise.resolve(promise, label);
+    promise = (0, _emberDataPrivateSystemStoreCommon._guard)(promise, (0, _emberDataPrivateSystemStoreCommon._bind)(_emberDataPrivateSystemStoreCommon._objectIsAlive, store));
+
+    return promise.then(function (adapterPayload) {
+      (0, _emberDataPrivateDebug.assert)("You made a `findRecord` request for a " + typeClass.typeClassKey + " with id " + id + ", but the adapter's response did not have any data", payloadIsNotBlank(adapterPayload));
+      return store._adapterRun(function () {
+        var payload = (0, _emberDataPrivateSystemStoreSerializerResponse.normalizeResponseHelper)(serializer, store, typeClass, adapterPayload, id, 'findRecord');
+        (0, _emberDataPrivateDebug.assert)('Ember Data expected the primary data returned from a `findRecord` response to be an object but instead it found an array.', !Array.isArray(payload.data));
+        //TODO Optimize
+        var record = store.push(payload);
+        return record._internalModel;
+      });
+    }, function (error) {
+      internalModel.notFound();
+      if (internalModel.isEmpty()) {
+        internalModel.unloadRecord();
+      }
+
+      throw error;
+    }, "DS: Extract payload of '" + typeClass + "'");
+  }
+
+  function _findMany(adapter, store, typeClass, ids, internalModels) {
+    var snapshots = _ember["default"].A(internalModels).invoke('createSnapshot');
+    var promise = adapter.findMany(store, typeClass, ids, snapshots);
+    var serializer = (0, _emberDataPrivateSystemStoreSerializers.serializerForAdapter)(store, adapter, typeClass.modelName);
+    var label = "DS: Handle Adapter#findMany of " + typeClass;
+
+    if (promise === undefined) {
+      throw new Error('adapter.findMany returned undefined, this was very likely a mistake');
+    }
+
+    promise = Promise.resolve(promise, label);
+    promise = (0, _emberDataPrivateSystemStoreCommon._guard)(promise, (0, _emberDataPrivateSystemStoreCommon._bind)(_emberDataPrivateSystemStoreCommon._objectIsAlive, store));
+
+    return promise.then(function (adapterPayload) {
+      (0, _emberDataPrivateDebug.assert)("You made a `findMany` request for a " + typeClass.typeClassKey + " with ids " + ids + ", but the adapter's response did not have any data", payloadIsNotBlank(adapterPayload));
+      return store._adapterRun(function () {
+        var payload = (0, _emberDataPrivateSystemStoreSerializerResponse.normalizeResponseHelper)(serializer, store, typeClass, adapterPayload, null, 'findMany');
+        //TODO Optimize, no need to materialize here
+        var records = store.push(payload);
+        var internalModels = new Array(records.length);
+
+        for (var i = 0; i < records.length; i++) {
+          internalModels[i] = records[i]._internalModel;
+        }
+
+        return internalModels;
+      });
+    }, null, "DS: Extract payload of " + typeClass);
+  }
+
+  function _findHasMany(adapter, store, internalModel, link, relationship) {
+    var snapshot = internalModel.createSnapshot();
+    var typeClass = store.modelFor(relationship.type);
+    var promise = adapter.findHasMany(store, snapshot, link, relationship);
+    var serializer = (0, _emberDataPrivateSystemStoreSerializers.serializerForAdapter)(store, adapter, relationship.type);
+    var label = "DS: Handle Adapter#findHasMany of " + internalModel + " : " + relationship.type;
+
+    promise = Promise.resolve(promise, label);
+    promise = (0, _emberDataPrivateSystemStoreCommon._guard)(promise, (0, _emberDataPrivateSystemStoreCommon._bind)(_emberDataPrivateSystemStoreCommon._objectIsAlive, store));
+    promise = (0, _emberDataPrivateSystemStoreCommon._guard)(promise, (0, _emberDataPrivateSystemStoreCommon._bind)(_emberDataPrivateSystemStoreCommon._objectIsAlive, internalModel));
+
+    return promise.then(function (adapterPayload) {
+      (0, _emberDataPrivateDebug.assert)("You made a `findHasMany` request for a " + internalModel.modelName + "'s `" + relationship.key + "` relationship, using link " + link + ", but the adapter's response did not have any data", payloadIsNotBlank(adapterPayload));
+      return store._adapterRun(function () {
+        var payload = (0, _emberDataPrivateSystemStoreSerializerResponse.normalizeResponseHelper)(serializer, store, typeClass, adapterPayload, null, 'findHasMany');
+        //TODO Use a non record creating push
+        var records = store.push(payload);
+        var recordArray = records.map(function (record) {
+          return record._internalModel;
+        });
+        recordArray.meta = payload.meta;
+        return recordArray;
+      });
+    }, null, "DS: Extract payload of " + internalModel + " : hasMany " + relationship.type);
+  }
+
+  function _findBelongsTo(adapter, store, internalModel, link, relationship) {
+    var snapshot = internalModel.createSnapshot();
+    var typeClass = store.modelFor(relationship.type);
+    var promise = adapter.findBelongsTo(store, snapshot, link, relationship);
+    var serializer = (0, _emberDataPrivateSystemStoreSerializers.serializerForAdapter)(store, adapter, relationship.type);
+    var label = "DS: Handle Adapter#findBelongsTo of " + internalModel + " : " + relationship.type;
+
+    promise = Promise.resolve(promise, label);
+    promise = (0, _emberDataPrivateSystemStoreCommon._guard)(promise, (0, _emberDataPrivateSystemStoreCommon._bind)(_emberDataPrivateSystemStoreCommon._objectIsAlive, store));
+    promise = (0, _emberDataPrivateSystemStoreCommon._guard)(promise, (0, _emberDataPrivateSystemStoreCommon._bind)(_emberDataPrivateSystemStoreCommon._objectIsAlive, internalModel));
+
+    return promise.then(function (adapterPayload) {
+      return store._adapterRun(function () {
+        var payload = (0, _emberDataPrivateSystemStoreSerializerResponse.normalizeResponseHelper)(serializer, store, typeClass, adapterPayload, null, 'findBelongsTo');
+
+        if (!payload.data) {
+          return null;
+        }
+
+        //TODO Optimize
+        var record = store.push(payload);
+        return record._internalModel;
+      });
+    }, null, "DS: Extract payload of " + internalModel + " : " + relationship.type);
+  }
+
+  function _findAll(adapter, store, typeClass, sinceToken, options) {
+    var modelName = typeClass.modelName;
+    var recordArray = store.peekAll(modelName);
+    var snapshotArray = recordArray.createSnapshot(options);
+    var promise = adapter.findAll(store, typeClass, sinceToken, snapshotArray);
+    var serializer = (0, _emberDataPrivateSystemStoreSerializers.serializerForAdapter)(store, adapter, modelName);
+    var label = "DS: Handle Adapter#findAll of " + typeClass;
+
+    promise = Promise.resolve(promise, label);
+    promise = (0, _emberDataPrivateSystemStoreCommon._guard)(promise, (0, _emberDataPrivateSystemStoreCommon._bind)(_emberDataPrivateSystemStoreCommon._objectIsAlive, store));
+
+    return promise.then(function (adapterPayload) {
+      (0, _emberDataPrivateDebug.assert)("You made a `findAll` request for " + typeClass.typeClassKey + "records, but the adapter's response did not have any data", payloadIsNotBlank(adapterPayload));
+      store._adapterRun(function () {
+        var payload = (0, _emberDataPrivateSystemStoreSerializerResponse.normalizeResponseHelper)(serializer, store, typeClass, adapterPayload, null, 'findAll');
+        //TODO Optimize
+        store.push(payload);
+      });
+
+      store.didUpdateAll(typeClass);
+      return store.peekAll(modelName);
+    }, null, "DS: Extract payload of findAll " + typeClass);
+  }
+
+  function _query(adapter, store, typeClass, query, recordArray) {
+    var modelName = typeClass.modelName;
+    var promise = adapter.query(store, typeClass, query, recordArray);
+
+    var serializer = (0, _emberDataPrivateSystemStoreSerializers.serializerForAdapter)(store, adapter, modelName);
+    var label = "DS: Handle Adapter#query of " + typeClass;
+
+    promise = Promise.resolve(promise, label);
+    promise = (0, _emberDataPrivateSystemStoreCommon._guard)(promise, (0, _emberDataPrivateSystemStoreCommon._bind)(_emberDataPrivateSystemStoreCommon._objectIsAlive, store));
+
+    return promise.then(function (adapterPayload) {
+      var records, payload;
+      store._adapterRun(function () {
+        payload = (0, _emberDataPrivateSystemStoreSerializerResponse.normalizeResponseHelper)(serializer, store, typeClass, adapterPayload, null, 'query');
+        //TODO Optimize
+        records = store.push(payload);
+      });
+
+      (0, _emberDataPrivateDebug.assert)('The response to store.query is expected to be an array but it was a single record. Please wrap your response in an array or use `store.queryRecord` to query for a single record.', _ember["default"].isArray(records));
+      recordArray.loadRecords(records, payload);
+      return recordArray;
+    }, null, "DS: Extract payload of query " + typeClass);
+  }
+
+  function _queryRecord(adapter, store, typeClass, query) {
+    var modelName = typeClass.modelName;
+    var promise = adapter.queryRecord(store, typeClass, query);
+    var serializer = (0, _emberDataPrivateSystemStoreSerializers.serializerForAdapter)(store, adapter, modelName);
+    var label = "DS: Handle Adapter#queryRecord of " + typeClass;
+
+    promise = Promise.resolve(promise, label);
+    promise = (0, _emberDataPrivateSystemStoreCommon._guard)(promise, (0, _emberDataPrivateSystemStoreCommon._bind)(_emberDataPrivateSystemStoreCommon._objectIsAlive, store));
+
+    return promise.then(function (adapterPayload) {
+      (0, _emberDataPrivateDebug.assert)("You made a `queryRecord` request for " + typeClass.typeClassKey + "records, with query `" + query + "`, but the adapter's response did not have any data", payloadIsNotBlank(adapterPayload));
+      var record;
+      store._adapterRun(function () {
+        var payload = (0, _emberDataPrivateSystemStoreSerializerResponse.normalizeResponseHelper)(serializer, store, typeClass, adapterPayload, null, 'queryRecord');
+        //TODO Optimize
+        record = store.push(payload);
+      });
+
+      return record;
+    }, null, "DS: Extract payload of queryRecord " + typeClass);
+  }
+});
+define('ember-data/-private/system/store/serializer-response', ['exports', 'ember', 'ember-data/-private/debug'], function (exports, _ember, _emberDataPrivateDebug) {
+  'use strict';
+
+  exports.validateDocumentStructure = validateDocumentStructure;
+  exports.normalizeResponseHelper = normalizeResponseHelper;
+
+  /*
+    This is a helper method that validates a JSON API top-level document
+  
+    The format of a document is described here:
+    http://jsonapi.org/format/#document-top-level
+  
+    @method validateDocumentStructure
+    @param {Object} doc JSON API document
+    @return {array} An array of errors found in the document structure
+  */
+
+  function validateDocumentStructure(doc) {
+    var errors = [];
+    if (!doc || typeof doc !== 'object') {
+      errors.push('Top level of a JSON API document must be an object');
+    } else {
+      if (!('data' in doc) && !('errors' in doc) && !('meta' in doc)) {
+        errors.push('One or more of the following keys must be present: "data", "errors", "meta".');
+      } else {
+        if ('data' in doc && 'errors' in doc) {
+          errors.push('Top level keys "errors" and "data" cannot both be present in a JSON API document');
+        }
+      }
+      if ('data' in doc) {
+        if (!(doc.data === null || _ember['default'].isArray(doc.data) || typeof doc.data === 'object')) {
+          errors.push('data must be null, an object, or an array');
+        }
+      }
+      if ('meta' in doc) {
+        if (typeof doc.meta !== 'object') {
+          errors.push('meta must be an object');
+        }
+      }
+      if ('errors' in doc) {
+        if (!_ember['default'].isArray(doc.errors)) {
+          errors.push('errors must be an array');
+        }
+      }
+      if ('links' in doc) {
+        if (typeof doc.links !== 'object') {
+          errors.push('links must be an object');
+        }
+      }
+      if ('jsonapi' in doc) {
+        if (typeof doc.jsonapi !== 'object') {
+          errors.push('jsonapi must be an object');
+        }
+      }
+      if ('included' in doc) {
+        if (typeof doc.included !== 'object') {
+          errors.push('included must be an array');
+        }
+      }
+    }
+
+    return errors;
+  }
+
+  /*
+    This is a helper method that always returns a JSON-API Document.
+  
+    @method normalizeResponseHelper
+    @param {DS.Serializer} serializer
+    @param {DS.Store} store
+    @param {subclass of DS.Model} modelClass
+    @param {Object} payload
+    @param {String|Number} id
+    @param {String} requestType
+    @return {Object} JSON-API Document
+  */
+
+  function normalizeResponseHelper(serializer, store, modelClass, payload, id, requestType) {
+    var normalizedResponse = serializer.normalizeResponse(store, modelClass, payload, id, requestType);
+    var validationErrors = [];
+    (0, _emberDataPrivateDebug.runInDebug)(function () {
+      validationErrors = validateDocumentStructure(normalizedResponse);
+    });
+    (0, _emberDataPrivateDebug.assert)('normalizeResponse must return a valid JSON API document:\n\t* ' + validationErrors.join('\n\t* '), _ember['default'].isEmpty(validationErrors));
+
+    return normalizedResponse;
+  }
+});
+define("ember-data/-private/system/store/serializers", ["exports"], function (exports) {
+  "use strict";
+
+  exports.serializerForAdapter = serializerForAdapter;
+
+  function serializerForAdapter(store, adapter, type) {
+    var serializer = adapter.serializer;
+
+    if (serializer === undefined) {
+      serializer = store.serializerFor(type);
+    }
+
+    if (serializer === null || serializer === undefined) {
+      serializer = {
+        extract: function extract(store, type, payload) {
+          return payload;
+        }
+      };
+    }
+
+    return serializer;
+  }
+});
+define("ember-data/-private/transforms", ["exports", "ember-data/transform", "ember-data/-private/transforms/number", "ember-data/-private/transforms/date", "ember-data/-private/transforms/string", "ember-data/-private/transforms/boolean"], function (exports, _emberDataTransform, _emberDataPrivateTransformsNumber, _emberDataPrivateTransformsDate, _emberDataPrivateTransformsString, _emberDataPrivateTransformsBoolean) {
+  "use strict";
+
+  exports.Transform = _emberDataTransform["default"];
+  exports.NumberTransform = _emberDataPrivateTransformsNumber["default"];
+  exports.DateTransform = _emberDataPrivateTransformsDate["default"];
+  exports.StringTransform = _emberDataPrivateTransformsString["default"];
+  exports.BooleanTransform = _emberDataPrivateTransformsBoolean["default"];
 });
 define("ember-data/-private/transforms/boolean", ["exports", "ember-data/transform"], function (exports, _emberDataTransform) {
   "use strict";
@@ -81056,54 +81158,6 @@ define("ember-data/-private/transforms/string", ["exports", "ember", "ember-data
     }
   });
 });
-define("ember-data/-private/transforms", ["exports", "ember-data/transform", "ember-data/-private/transforms/number", "ember-data/-private/transforms/date", "ember-data/-private/transforms/string", "ember-data/-private/transforms/boolean"], function (exports, _emberDataTransform, _emberDataPrivateTransformsNumber, _emberDataPrivateTransformsDate, _emberDataPrivateTransformsString, _emberDataPrivateTransformsBoolean) {
-  "use strict";
-
-  exports.Transform = _emberDataTransform["default"];
-  exports.NumberTransform = _emberDataPrivateTransformsNumber["default"];
-  exports.DateTransform = _emberDataPrivateTransformsDate["default"];
-  exports.StringTransform = _emberDataPrivateTransformsString["default"];
-  exports.BooleanTransform = _emberDataPrivateTransformsBoolean["default"];
-});
-define('ember-data/-private/utils/parse-response-headers', ['exports', 'ember-data/-private/system/empty-object'], function (exports, _emberDataPrivateSystemEmptyObject) {
-  'use strict';
-
-  exports['default'] = parseResponseHeaders;
-
-  function _toArray(arr) {
-    return Array.isArray(arr) ? arr : Array.from(arr);
-  }
-
-  var CLRF = '\r\n';
-  function parseResponseHeaders(headersString) {
-    var headers = new _emberDataPrivateSystemEmptyObject['default']();
-
-    if (!headersString) {
-      return headers;
-    }
-
-    var headerPairs = headersString.split(CLRF);
-
-    headerPairs.forEach(function (header) {
-      var _header$split = header.split(':');
-
-      var _header$split2 = _toArray(_header$split);
-
-      var field = _header$split2[0];
-
-      var value = _header$split2.slice(1);
-
-      field = field.trim();
-      value = value.join(':').trim();
-
-      if (value) {
-        headers[field] = value;
-      }
-    });
-
-    return headers;
-  }
-});
 define('ember-data/-private/utils', ['exports', 'ember'], function (exports, _ember) {
   'use strict';
 
@@ -81150,6 +81204,45 @@ define('ember-data/-private/utils', ['exports', 'ember'], function (exports, _em
 
   exports.modelHasAttributeOrRelationshipNamedType = modelHasAttributeOrRelationshipNamedType;
   exports.getOwner = getOwner;
+});
+define('ember-data/-private/utils/parse-response-headers', ['exports', 'ember-data/-private/system/empty-object'], function (exports, _emberDataPrivateSystemEmptyObject) {
+  'use strict';
+
+  exports['default'] = parseResponseHeaders;
+
+  function _toArray(arr) {
+    return Array.isArray(arr) ? arr : Array.from(arr);
+  }
+
+  var CLRF = '\r\n';
+  function parseResponseHeaders(headersString) {
+    var headers = new _emberDataPrivateSystemEmptyObject['default']();
+
+    if (!headersString) {
+      return headers;
+    }
+
+    var headerPairs = headersString.split(CLRF);
+
+    headerPairs.forEach(function (header) {
+      var _header$split = header.split(':');
+
+      var _header$split2 = _toArray(_header$split);
+
+      var field = _header$split2[0];
+
+      var value = _header$split2.slice(1);
+
+      field = field.trim();
+      value = value.join(':').trim();
+
+      if (value) {
+        headers[field] = value;
+      }
+    });
+
+    return headers;
+  }
 });
 define('ember-data/adapter', ['exports', 'ember'], function (exports, _ember) {
   /**
@@ -82666,11 +82759,13 @@ define('ember-data/adapters/rest', ['exports', 'ember', 'ember-data/adapter', 'e
     buildQuery: function buildQuery(snapshot) {
       var query = {};
 
-      if (snapshot) {
-        var include = snapshot.include;
+      if (true) {
+        if (snapshot) {
+          var include = snapshot.include;
 
-        if (include) {
-          query.include = include;
+          if (include) {
+            query.include = include;
+          }
         }
       }
 
@@ -83734,8 +83829,11 @@ define('ember-data/serializers/json-api', ['exports', 'ember', 'ember-data/-priv
     */
     pushPayload: function pushPayload(store, payload) {
       var normalizedPayload = this._normalizeDocumentHelper(payload);
-
-      store.push(normalizedPayload);
+      if (false) {
+        return store.push(normalizedPayload);
+      } else {
+        store.push(normalizedPayload);
+      }
     },
 
     /**
@@ -84227,8 +84325,9 @@ define('ember-data/serializers/json', ['exports', 'ember', 'ember-data/-private/
       var _this = this;
 
       var attributes = undefined;
-
-      attributes = get(typeClass, 'attributes');
+      if (true) {
+        attributes = get(typeClass, 'attributes');
+      }
 
       typeClass.eachTransformedAttribute(function (key, typeClass) {
         if (!data.hasOwnProperty(key)) {
@@ -84236,9 +84335,12 @@ define('ember-data/serializers/json', ['exports', 'ember', 'ember-data/-private/
         }
 
         var transform = _this.transformFor(typeClass);
-
-        var transformMeta = attributes.get(key);
-        data[key] = transform.deserialize(data[key], transformMeta.options);
+        if (true) {
+          var transformMeta = attributes.get(key);
+          data[key] = transform.deserialize(data[key], transformMeta.options);
+        } else {
+          data[key] = transform.deserialize(data[key]);
+        }
       });
 
       return data;
@@ -85082,8 +85184,11 @@ define('ember-data/serializers/json', ['exports', 'ember', 'ember-data/-private/
         var value = snapshot.attr(key);
         if (type) {
           var transform = this.transformFor(type);
-
-          value = transform.serialize(value, attribute.options);
+          if (true) {
+            value = transform.serialize(value, attribute.options);
+          } else {
+            value = transform.serialize(value);
+          }
         }
 
         // if provided, use the mapping provided by `attrs` in
@@ -85826,7 +85931,11 @@ define("ember-data/serializers/rest", ["exports", "ember", "ember-data/-private/
         });
       }
 
-      store.push(documentHash);
+      if (false) {
+        return store.push(documentHash);
+      } else {
+        store.push(documentHash);
+      }
     },
 
     /**
@@ -86539,13 +86648,23 @@ define('ember-inflector/lib/helpers/singularize', ['exports', 'ember-inflector',
     return (0, _emberInflector.singularize)(params[0]);
   });
 });
+define("ember-inflector/lib/system", ["exports", "ember-inflector/lib/system/inflector", "ember-inflector/lib/system/string", "ember-inflector/lib/system/inflections"], function (exports, _emberInflectorLibSystemInflector, _emberInflectorLibSystemString, _emberInflectorLibSystemInflections) {
+  "use strict";
+
+  _emberInflectorLibSystemInflector["default"].inflector = new _emberInflectorLibSystemInflector["default"](_emberInflectorLibSystemInflections["default"]);
+
+  exports.Inflector = _emberInflectorLibSystemInflector["default"];
+  exports.singularize = _emberInflectorLibSystemString.singularize;
+  exports.pluralize = _emberInflectorLibSystemString.pluralize;
+  exports.defaultRules = _emberInflectorLibSystemInflections["default"];
+});
 define('ember-inflector/lib/system/inflections', ['exports'], function (exports) {
   'use strict';
 
   exports['default'] = {
-    plurals: [[/$/, 's'], [/s$/i, 's'], [/^(ax|test)is$/i, '$1es'], [/(octop|vir)us$/i, '$1i'], [/(octop|vir)i$/i, '$1i'], [/(alias|status)$/i, '$1es'], [/(bu)s$/i, '$1ses'], [/(buffal|tomat)o$/i, '$1oes'], [/([ti])um$/i, '$1a'], [/([ti])a$/i, '$1a'], [/sis$/i, 'ses'], [/(?:([^f])fe|([lr])f)$/i, '$1$2ves'], [/(hive)$/i, '$1s'], [/([^aeiouy]|qu)y$/i, '$1ies'], [/(x|ch|ss|sh)$/i, '$1es'], [/(matr|vert|ind)(?:ix|ex)$/i, '$1ices'], [/^(m|l)ouse$/i, '$1ice'], [/^(m|l)ice$/i, '$1ice'], [/^(ox)$/i, '$1en'], [/^(oxen)$/i, '$1'], [/(quiz)$/i, '$1zes']],
+    plurals: [[/$/, 's'], [/s$/i, 's'], [/^(ax|test)is$/i, '$1es'], [/(octop|vir)us$/i, '$1i'], [/(octop|vir)i$/i, '$1i'], [/(alias|status|bonus)$/i, '$1es'], [/(bu)s$/i, '$1ses'], [/(buffal|tomat)o$/i, '$1oes'], [/([ti])um$/i, '$1a'], [/([ti])a$/i, '$1a'], [/sis$/i, 'ses'], [/(?:([^f])fe|([lr])f)$/i, '$1$2ves'], [/(hive)$/i, '$1s'], [/([^aeiouy]|qu)y$/i, '$1ies'], [/(x|ch|ss|sh)$/i, '$1es'], [/(matr|vert|ind)(?:ix|ex)$/i, '$1ices'], [/^(m|l)ouse$/i, '$1ice'], [/^(m|l)ice$/i, '$1ice'], [/^(ox)$/i, '$1en'], [/^(oxen)$/i, '$1'], [/(quiz)$/i, '$1zes']],
 
-    singular: [[/s$/i, ''], [/(ss)$/i, '$1'], [/(n)ews$/i, '$1ews'], [/([ti])a$/i, '$1um'], [/((a)naly|(b)a|(d)iagno|(p)arenthe|(p)rogno|(s)ynop|(t)he)(sis|ses)$/i, '$1sis'], [/(^analy)(sis|ses)$/i, '$1sis'], [/([^f])ves$/i, '$1fe'], [/(hive)s$/i, '$1'], [/(tive)s$/i, '$1'], [/([lr])ves$/i, '$1f'], [/([^aeiouy]|qu)ies$/i, '$1y'], [/(s)eries$/i, '$1eries'], [/(m)ovies$/i, '$1ovie'], [/(x|ch|ss|sh)es$/i, '$1'], [/^(m|l)ice$/i, '$1ouse'], [/(bus)(es)?$/i, '$1'], [/(o)es$/i, '$1'], [/(shoe)s$/i, '$1'], [/(cris|test)(is|es)$/i, '$1is'], [/^(a)x[ie]s$/i, '$1xis'], [/(octop|vir)(us|i)$/i, '$1us'], [/(alias|status)(es)?$/i, '$1'], [/^(ox)en/i, '$1'], [/(vert|ind)ices$/i, '$1ex'], [/(matr)ices$/i, '$1ix'], [/(quiz)zes$/i, '$1'], [/(database)s$/i, '$1']],
+    singular: [[/s$/i, ''], [/(ss)$/i, '$1'], [/(n)ews$/i, '$1ews'], [/([ti])a$/i, '$1um'], [/((a)naly|(b)a|(d)iagno|(p)arenthe|(p)rogno|(s)ynop|(t)he)(sis|ses)$/i, '$1sis'], [/(^analy)(sis|ses)$/i, '$1sis'], [/([^f])ves$/i, '$1fe'], [/(hive)s$/i, '$1'], [/(tive)s$/i, '$1'], [/([lr])ves$/i, '$1f'], [/([^aeiouy]|qu)ies$/i, '$1y'], [/(s)eries$/i, '$1eries'], [/(m)ovies$/i, '$1ovie'], [/(x|ch|ss|sh)es$/i, '$1'], [/^(m|l)ice$/i, '$1ouse'], [/(bus)(es)?$/i, '$1'], [/(o)es$/i, '$1'], [/(shoe)s$/i, '$1'], [/(cris|test)(is|es)$/i, '$1is'], [/^(a)x[ie]s$/i, '$1xis'], [/(octop|vir)(us|i)$/i, '$1us'], [/(alias|status|bonus)(es)?$/i, '$1'], [/^(ox)en/i, '$1'], [/(vert|ind)ices$/i, '$1ex'], [/(matr)ices$/i, '$1ix'], [/(quiz)zes$/i, '$1'], [/(database)s$/i, '$1']],
 
     irregularPairs: [['person', 'people'], ['man', 'men'], ['child', 'children'], ['sex', 'sexes'], ['move', 'moves'], ['cow', 'kine'], ['zombie', 'zombies']],
 
@@ -86823,7 +86942,7 @@ define('ember-inflector/lib/system/inflector', ['exports', 'ember'], function (e
         return word;
       }
 
-      for (rule in this.rules.irregular) {
+      for (rule in irregular) {
         if (lowercase.match(rule + "$")) {
           substitution = irregular[rule];
 
@@ -86832,7 +86951,7 @@ define('ember-inflector/lib/system/inflector', ['exports', 'ember'], function (e
             rule = capitalize(rule);
           }
 
-          return word.replace(rule, substitution);
+          return word.replace(new RegExp(rule, 'i'), substitution);
         }
       }
 
@@ -86871,16 +86990,6 @@ define('ember-inflector/lib/system/string', ['exports', 'ember-inflector/lib/sys
 
   exports.pluralize = pluralize;
   exports.singularize = singularize;
-});
-define("ember-inflector/lib/system", ["exports", "ember-inflector/lib/system/inflector", "ember-inflector/lib/system/string", "ember-inflector/lib/system/inflections"], function (exports, _emberInflectorLibSystemInflector, _emberInflectorLibSystemString, _emberInflectorLibSystemInflections) {
-  "use strict";
-
-  _emberInflectorLibSystemInflector["default"].inflector = new _emberInflectorLibSystemInflector["default"](_emberInflectorLibSystemInflections["default"]);
-
-  exports.Inflector = _emberInflectorLibSystemInflector["default"];
-  exports.singularize = _emberInflectorLibSystemString.singularize;
-  exports.pluralize = _emberInflectorLibSystemString.pluralize;
-  exports.defaultRules = _emberInflectorLibSystemInflections["default"];
 });
 define('ember-inflector/lib/utils/make-helper', ['exports', 'ember'], function (exports, _ember) {
   'use strict';
@@ -86932,164 +87041,381 @@ define('ember-load-initializers/index', ['exports', 'ember'], function (exports,
     });
   };
 });
-define('ember-power-select/components/power-select/before-options', ['exports', 'ember', 'ember-power-select/templates/components/power-select/before-options', 'ember-power-select/utils/update-input-value'], function (exports, _ember, _emberPowerSelectTemplatesComponentsPowerSelectBeforeOptions, _emberPowerSelectUtilsUpdateInputValue) {
+define('ember-power-select-with-create/components/power-select-with-create', ['exports', 'ember', 'ember-power-select-with-create/templates/components/power-select-with-create', 'ember-power-select/utils/group-utils'], function (exports, _ember, _emberPowerSelectWithCreateTemplatesComponentsPowerSelectWithCreate, _emberPowerSelectUtilsGroupUtils) {
   'use strict';
 
-  var run = _ember['default'].run;
+  var computed = _ember['default'].computed;
+  var get = _ember['default'].get;
 
   exports['default'] = _ember['default'].Component.extend({
     tagName: '',
-    layout: _emberPowerSelectTemplatesComponentsPowerSelectBeforeOptions['default'],
+    layout: _emberPowerSelectWithCreateTemplatesComponentsPowerSelectWithCreate['default'],
+    matcher: _emberPowerSelectUtilsGroupUtils.defaultMatcher,
 
     // Lifecycle hooks
-    didReceiveAttrs: function didReceiveAttrs(_ref) {
-      var oldAttrs = _ref.oldAttrs;
-      var newAttrs = _ref.newAttrs;
-
+    init: function init() {
       this._super.apply(this, arguments);
-      if (newAttrs.searchText !== undefined && newAttrs.searchText !== null) {
-        run.scheduleOnce('afterRender', this, this.updateInput, newAttrs.searchText);
-      }
+      _ember['default'].assert('{{power-select-with-create}} requires an `oncreate` function', this.get('oncreate') && typeof this.get('oncreate') === 'function');
     },
 
-    didInsertElement: function didInsertElement() {
-      this._super.apply(this, arguments);
-      this.focusInput();
-      this.get('eventSender').on('focus', this, this.focusInput);
-    },
-
-    willDestroy: function willDestroy() {
-      this._super.apply(this, arguments);
-      if (this.get('searchEnabled')) {
-        this.get('select.actions.search')('');
+    // CPs
+    optionsArray: computed('options.[]', function () {
+      var options = this.get('options');
+      if (!options) {
+        return _ember['default'].A();
       }
-      this.get('eventSender').off('focus', this, this.focusInput);
+      if (options.then) {
+        return options.then(function (value) {
+          return _ember['default'].A(value).toArray();
+        });
+      } else {
+        return _ember['default'].A(options).toArray();
+      }
+    }),
+
+    powerSelectComponentName: computed('multiple', function () {
+      return this.get('multiple') ? 'power-select-multiple' : 'power-select';
+    }),
+
+    shouldShowCreateOption: function shouldShowCreateOption(term) {
+      return this.get('showCreateWhen') ? this.get('showCreateWhen')(term) : true;
     },
 
     // Actions
     actions: {
-      handleKeydown: function handleKeydown(e) {
-        var select = this.get('select');
-        if (e.keyCode === 13) {
-          var onkeydown = this.get('onkeydown');
-          if (onkeydown) {
-            onkeydown(select, e);
-          }
-          if (e.defaultPrevented) {
-            return;
-          }
-          select.actions.choose(this.get('highlighted'), e);
-        } else if (e.keyCode === 32) {
-          // noop
-        } else {
-            select.actions.handleKeydown(e);
-          }
-      }
-    },
+      searchAndSuggest: function searchAndSuggest(term) {
+        var _this = this;
 
-    // Methods
-    updateInput: function updateInput(value) {
-      (0, _emberPowerSelectUtilsUpdateInputValue['default'])(this.input, value);
-    },
+        var newOptions = this.get('optionsArray');
 
-    focusInput: function focusInput() {
-      this.input = self.document.querySelector('.ember-power-select-search input');
-      if (this.input) {
-        run.scheduleOnce('afterRender', this.input, 'focus');
-      }
-    }
-  });
-});
-define('ember-power-select/components/power-select/options', ['exports', 'ember', 'ember-power-select/templates/components/power-select/options'], function (exports, _ember, _emberPowerSelectTemplatesComponentsPowerSelectOptions) {
-  'use strict';
-
-  exports['default'] = _ember['default'].Component.extend({
-    isTouchDevice: !!self.window && 'ontouchstart' in self.window,
-    layout: _emberPowerSelectTemplatesComponentsPowerSelectOptions['default'],
-    tagName: 'ul',
-    attributeBindings: ['role', 'aria-controls'],
-    role: 'listbox',
-
-    // Lifecycle hooks
-    didInsertElement: function didInsertElement() {
-      var _this = this;
-
-      this._super.apply(this, arguments);
-      if (this.get('role') === 'group') {
-        return;
-      }
-      var findOptionAndPerform = function findOptionAndPerform(action, e) {
-        var optionItem = _ember['default'].$(e.target).closest('[data-option-index]');
-        if (!optionItem || !(0 in optionItem)) {
-          return;
+        if (term.length === 0) {
+          return newOptions;
         }
-        action(_this._optionFromIndex(optionItem[0].dataset.optionIndex), e);
-      };
-      this.element.addEventListener('mouseup', function (e) {
-        return findOptionAndPerform(_this.get('select.actions.choose'), e);
-      });
-      this.element.addEventListener('mouseover', function (e) {
-        return findOptionAndPerform(_this.get('select.actions.highlight'), e);
-      });
-      if (this.get('isTouchDevice')) {
-        this._addTouchEvents();
+
+        if (this.get('search')) {
+          return _ember['default'].RSVP.resolve(this.get('search')(term)).then(function (results) {
+            if (results.toArray) {
+              results = results.toArray();
+            }
+
+            if (_this.shouldShowCreateOption(term)) {
+              results.unshift(_this.buildSuggestionForTerm(term));
+            }
+
+            return results;
+          });
+        }
+
+        newOptions = this.filter(_ember['default'].A(newOptions), term);
+        if (this.shouldShowCreateOption(term)) {
+          newOptions.unshift(this.buildSuggestionForTerm(term));
+        }
+
+        return newOptions;
+      },
+
+      selectOrCreate: function selectOrCreate(selection) {
+        var suggestion = undefined;
+        if (this.get('multiple')) {
+          suggestion = selection.filter(function (option) {
+            return option.__isSuggestion__;
+          })[0];
+        } else if (selection && selection.__isSuggestion__) {
+          suggestion = selection;
+        }
+
+        if (suggestion) {
+          this.get('oncreate')(suggestion.__value__);
+        } else {
+          this.get('onchange')(selection);
+        }
       }
     },
 
     // Methods
-    _addTouchEvents: function _addTouchEvents() {
+    filter: function filter(options, searchText) {
       var _this2 = this;
 
-      var touchMoveHandler = function touchMoveHandler() {
-        _this2.hasMoved = true;
-        _this2.element.removeEventListener('touchmove', touchMoveHandler);
-      };
-      // Add touch event handlers to detect taps
-      this.element.addEventListener('touchstart', function () {
-        _this2.element.addEventListener('touchmove', touchMoveHandler);
-      });
-      this.element.addEventListener('touchend', function (e) {
-        e.preventDefault();
-        if (_this2.hasMoved) {
-          _this2.hasMoved = false;
-          return;
-        }
-        if (e.target.dataset.optionIndex) {
-          _this2.get('select.actions.choose')(_this2._optionFromIndex(e.target.dataset.optionIndex), e);
-        }
-      });
+      var matcher = undefined;
+      if (this.get('searchField')) {
+        matcher = function (option, text) {
+          return _this2.matcher(get(option, _this2.get('searchField')), text);
+        };
+      } else {
+        matcher = function (option, text) {
+          return _this2.matcher(option, text);
+        };
+      }
+      return (0, _emberPowerSelectUtilsGroupUtils.filterOptions)(options || [], searchText, matcher);
     },
 
-    _optionFromIndex: function _optionFromIndex(index) {
-      var parts = index.split('.');
-      var options = this.get('options');
-      if (!options.objectAt) {
-        options = _ember['default'].A(options);
+    buildSuggestionForTerm: function buildSuggestionForTerm(term) {
+      return {
+        __isSuggestion__: true,
+        __value__: term,
+        text: this.buildSuggestionLabel(term)
+      };
+    },
+
+    buildSuggestionLabel: function buildSuggestionLabel(term) {
+      var buildSuggestion = this.get('buildSuggestion');
+      if (buildSuggestion) {
+        return buildSuggestion(term);
       }
-      var option = options.objectAt(parseInt(parts[0], 10));
-      for (var i = 1; i < parts.length; i++) {
-        var groupOptions = option.options;
-        if (!groupOptions.objectAt) {
-          groupOptions = _ember['default'].A(groupOptions);
-        }
-        option = groupOptions.objectAt(parseInt(parts[i], 10));
-      }
-      return option;
+      return 'Add "' + term + '"...';
     }
   });
 });
-define('ember-power-select/components/power-select/trigger', ['exports', 'ember', 'ember-power-select/templates/components/power-select/trigger'], function (exports, _ember, _emberPowerSelectTemplatesComponentsPowerSelectTrigger) {
+define("ember-power-select-with-create/templates/components/power-select-with-create", ["exports"], function (exports) {
+  "use strict";
+
+  exports["default"] = Ember.HTMLBars.template((function () {
+    var child0 = (function () {
+      var child0 = (function () {
+        return {
+          meta: {
+            "fragmentReason": false,
+            "revision": "Ember@2.5.1",
+            "loc": {
+              "source": null,
+              "start": {
+                "line": 44,
+                "column": 2
+              },
+              "end": {
+                "line": 46,
+                "column": 2
+              }
+            },
+            "moduleName": "modules/ember-power-select-with-create/templates/components/power-select-with-create.hbs"
+          },
+          isEmpty: false,
+          arity: 0,
+          cachedFragment: null,
+          hasRendered: false,
+          buildFragment: function buildFragment(dom) {
+            var el0 = dom.createDocumentFragment();
+            var el1 = dom.createTextNode("    ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createComment("");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createTextNode("\n");
+            dom.appendChild(el0, el1);
+            return el0;
+          },
+          buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+            var morphs = new Array(1);
+            morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
+            return morphs;
+          },
+          statements: [["content", "option.text", ["loc", [null, [45, 4], [45, 19]]]]],
+          locals: [],
+          templates: []
+        };
+      })();
+      var child1 = (function () {
+        return {
+          meta: {
+            "fragmentReason": false,
+            "revision": "Ember@2.5.1",
+            "loc": {
+              "source": null,
+              "start": {
+                "line": 46,
+                "column": 2
+              },
+              "end": {
+                "line": 48,
+                "column": 2
+              }
+            },
+            "moduleName": "modules/ember-power-select-with-create/templates/components/power-select-with-create.hbs"
+          },
+          isEmpty: false,
+          arity: 0,
+          cachedFragment: null,
+          hasRendered: false,
+          buildFragment: function buildFragment(dom) {
+            var el0 = dom.createDocumentFragment();
+            var el1 = dom.createTextNode("    ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createComment("");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createTextNode("\n");
+            dom.appendChild(el0, el1);
+            return el0;
+          },
+          buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+            var morphs = new Array(1);
+            morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
+            return morphs;
+          },
+          statements: [["inline", "yield", [["get", "option", ["loc", [null, [47, 12], [47, 18]]]], ["get", "term", ["loc", [null, [47, 19], [47, 23]]]]], [], ["loc", [null, [47, 4], [47, 25]]]]],
+          locals: [],
+          templates: []
+        };
+      })();
+      return {
+        meta: {
+          "fragmentReason": {
+            "name": "missing-wrapper",
+            "problems": ["wrong-type"]
+          },
+          "revision": "Ember@2.5.1",
+          "loc": {
+            "source": null,
+            "start": {
+              "line": 1,
+              "column": 0
+            },
+            "end": {
+              "line": 49,
+              "column": 0
+            }
+          },
+          "moduleName": "modules/ember-power-select-with-create/templates/components/power-select-with-create.hbs"
+        },
+        isEmpty: false,
+        arity: 2,
+        cachedFragment: null,
+        hasRendered: false,
+        buildFragment: function buildFragment(dom) {
+          var el0 = dom.createDocumentFragment();
+          var el1 = dom.createComment("");
+          dom.appendChild(el0, el1);
+          return el0;
+        },
+        buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+          var morphs = new Array(1);
+          morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
+          dom.insertBoundary(fragment, 0);
+          dom.insertBoundary(fragment, null);
+          return morphs;
+        },
+        statements: [["block", "if", [["get", "option.__isSuggestion__", ["loc", [null, [44, 8], [44, 31]]]]], [], 0, 1, ["loc", [null, [44, 2], [48, 9]]]]],
+        locals: ["option", "term"],
+        templates: [child0, child1]
+      };
+    })();
+    return {
+      meta: {
+        "fragmentReason": {
+          "name": "missing-wrapper",
+          "problems": ["wrong-type"]
+        },
+        "revision": "Ember@2.5.1",
+        "loc": {
+          "source": null,
+          "start": {
+            "line": 1,
+            "column": 0
+          },
+          "end": {
+            "line": 50,
+            "column": 0
+          }
+        },
+        "moduleName": "modules/ember-power-select-with-create/templates/components/power-select-with-create.hbs"
+      },
+      isEmpty: false,
+      arity: 0,
+      cachedFragment: null,
+      hasRendered: false,
+      buildFragment: function buildFragment(dom) {
+        var el0 = dom.createDocumentFragment();
+        var el1 = dom.createComment("");
+        dom.appendChild(el0, el1);
+        return el0;
+      },
+      buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+        var morphs = new Array(1);
+        morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
+        dom.insertBoundary(fragment, 0);
+        dom.insertBoundary(fragment, null);
+        return morphs;
+      },
+      statements: [["block", "component", [["get", "powerSelectComponentName", ["loc", [null, [1, 13], [1, 37]]]]], ["ariaDescribedBy", ["subexpr", "@mut", [["get", "ariaDescribedBy", ["loc", [null, [2, 20], [2, 35]]]]], [], []], "ariaInvalid", ["subexpr", "@mut", [["get", "ariaInvalid", ["loc", [null, [3, 16], [3, 27]]]]], [], []], "ariaLabel", ["subexpr", "@mut", [["get", "ariaLabel", ["loc", [null, [4, 14], [4, 23]]]]], [], []], "ariaLabelledBy", ["subexpr", "@mut", [["get", "ariaLabelledBy", ["loc", [null, [5, 19], [5, 33]]]]], [], []], "options", ["subexpr", "@mut", [["get", "optionsArray", ["loc", [null, [6, 12], [6, 24]]]]], [], []], "selected", ["subexpr", "@mut", [["get", "selected", ["loc", [null, [7, 13], [7, 21]]]]], [], []], "onchange", ["subexpr", "action", ["selectOrCreate"], [], ["loc", [null, [8, 13], [8, 38]]]], "onkeydown", ["subexpr", "@mut", [["get", "onkeydown", ["loc", [null, [9, 14], [9, 23]]]]], [], []], "onfocus", ["subexpr", "@mut", [["get", "onfocus", ["loc", [null, [10, 12], [10, 19]]]]], [], []], "onopen", ["subexpr", "@mut", [["get", "onopen", ["loc", [null, [11, 11], [11, 17]]]]], [], []], "onclose", ["subexpr", "@mut", [["get", "onclose", ["loc", [null, [12, 12], [12, 19]]]]], [], []], "search", ["subexpr", "action", ["searchAndSuggest"], [], ["loc", [null, [13, 11], [13, 38]]]], "disabled", ["subexpr", "@mut", [["get", "disabled", ["loc", [null, [14, 13], [14, 21]]]]], [], []], "placeholder", ["subexpr", "@mut", [["get", "placeholder", ["loc", [null, [15, 16], [15, 27]]]]], [], []], "searchEnabled", ["subexpr", "@mut", [["get", "searchEnabled", ["loc", [null, [16, 18], [16, 31]]]]], [], []], "searchPlaceholder", ["subexpr", "@mut", [["get", "searchPlaceholder", ["loc", [null, [17, 22], [17, 39]]]]], [], []], "searchField", ["subexpr", "@mut", [["get", "searchField", ["loc", [null, [18, 16], [18, 27]]]]], [], []], "matcher", ["subexpr", "@mut", [["get", "matcher", ["loc", [null, [19, 12], [19, 19]]]]], [], []], "loadingMessage", ["subexpr", "@mut", [["get", "loadingMessage", ["loc", [null, [20, 19], [20, 33]]]]], [], []], "noMatchesMessage", ["subexpr", "@mut", [["get", "noMatchesMessage", ["loc", [null, [21, 21], [21, 37]]]]], [], []], "searchMessage", ["subexpr", "@mut", [["get", "searchMessage", ["loc", [null, [22, 18], [22, 31]]]]], [], []], "triggerComponent", ["subexpr", "@mut", [["get", "triggerComponent", ["loc", [null, [23, 21], [23, 37]]]]], [], []], "selectedItemComponent", ["subexpr", "@mut", [["get", "selectedItemComponent", ["loc", [null, [24, 26], [24, 47]]]]], [], []], "afterOptionsComponent", ["subexpr", "@mut", [["get", "afterOptionsComponent", ["loc", [null, [25, 26], [25, 47]]]]], [], []], "beforeOptionsComponent", ["subexpr", "@mut", [["get", "beforeOptionsComponent", ["loc", [null, [26, 27], [26, 49]]]]], [], []], "optionsComponent", ["subexpr", "@mut", [["get", "optionsComponent", ["loc", [null, [27, 21], [27, 37]]]]], [], []], "renderInPlace", ["subexpr", "@mut", [["get", "renderInPlace", ["loc", [null, [28, 18], [28, 31]]]]], [], []], "closeOnSelect", ["subexpr", "@mut", [["get", "closeOnSelect", ["loc", [null, [29, 18], [29, 31]]]]], [], []], "allowClear", ["subexpr", "@mut", [["get", "allowClear", ["loc", [null, [30, 15], [30, 25]]]]], [], []], "verticalPosition", ["subexpr", "@mut", [["get", "verticalPosition", ["loc", [null, [31, 21], [31, 37]]]]], [], []], "horizontalPosition", ["subexpr", "@mut", [["get", "horizontalPosition", ["loc", [null, [32, 23], [32, 41]]]]], [], []], "class", ["subexpr", "@mut", [["get", "class", ["loc", [null, [33, 10], [33, 15]]]]], [], []], "triggerClass", ["subexpr", "@mut", [["get", "triggerClass", ["loc", [null, [34, 17], [34, 29]]]]], [], []], "dropdownClass", ["subexpr", "@mut", [["get", "dropdownClass", ["loc", [null, [35, 18], [35, 31]]]]], [], []], "extra", ["subexpr", "@mut", [["get", "extra", ["loc", [null, [36, 10], [36, 15]]]]], [], []], "initiallyOpened", ["subexpr", "@mut", [["get", "initiallyOpened", ["loc", [null, [37, 20], [37, 35]]]]], [], []], "matchTriggerWidth", ["subexpr", "@mut", [["get", "matchTriggerWidth", ["loc", [null, [38, 22], [38, 39]]]]], [], []], "destination", ["subexpr", "@mut", [["get", "destination", ["loc", [null, [39, 16], [39, 27]]]]], [], []], "tabindex", ["subexpr", "@mut", [["get", "tabindex", ["loc", [null, [40, 13], [40, 21]]]]], [], []], "dir", ["subexpr", "@mut", [["get", "dir", ["loc", [null, [41, 8], [41, 11]]]]], [], []]], 0, null, ["loc", [null, [1, 0], [49, 14]]]]],
+      locals: [],
+      templates: [child0]
+    };
+  })());
+});
+define('ember-power-select/components/power-select-multiple', ['exports', 'ember', 'ember-power-select/templates/components/power-select-multiple', 'ember-power-select/utils/computed-fallback-if-undefined'], function (exports, _ember, _emberPowerSelectTemplatesComponentsPowerSelectMultiple, _emberPowerSelectUtilsComputedFallbackIfUndefined) {
   'use strict';
 
+  var computed = _ember['default'].computed;
+
   exports['default'] = _ember['default'].Component.extend({
-    layout: _emberPowerSelectTemplatesComponentsPowerSelectTrigger['default'],
-    tagName: '',
+    layout: _emberPowerSelectTemplatesComponentsPowerSelectMultiple['default'],
+    // Config
+    triggerComponent: (0, _emberPowerSelectUtilsComputedFallbackIfUndefined['default'])('power-select-multiple/trigger'),
+    beforeOptionsComponent: (0, _emberPowerSelectUtilsComputedFallbackIfUndefined['default'])(null),
+
+    // CPs
+    concatenatedTriggerClass: computed('triggerClass', function () {
+      var classes = ['ember-power-select-multiple-trigger'];
+      if (this.get('triggerClass')) {
+        classes.push(this.get('triggerClass'));
+      }
+      return classes.join(' ');
+    }),
 
     // Actions
     actions: {
-      clear: function clear(e) {
-        e.stopPropagation();
-        this.get('select.actions.select')(null);
+      handleOpen: function handleOpen(select, e) {
+        var action = this.get('onopen');
+        if (action && action(select, e) === false) {
+          return false;
+        }
+        this.focusInput();
+      },
+
+      handleFocus: function handleFocus(select, e) {
+        var action = this.get('onfocus');
+        if (action) {
+          action(select, e);
+        }
+        this.focusInput();
+      },
+
+      handleKeydown: function handleKeydown(select, e) {
+        var action = this.get('onkeydown');
+        if (action && action(select, e) === false) {
+          e.stopPropagation();
+          return false;
+        }
+        var selected = _ember['default'].A(this.get('selected') || []);
+        if (e.keyCode === 13 && select.isOpen) {
+          e.stopPropagation();
+          if (select.highlighted !== undefined) {
+            if (selected.indexOf(select.highlighted) === -1) {
+              select.actions.choose(select.highlighted, e);
+            } else {
+              select.actions.close(e);
+            }
+          } else {
+            select.actions.close(e);
+          }
+        }
+      },
+
+      buildSelection: function buildSelection(option) {
+        var newSelection = (this.get('selected') || []).slice(0);
+        var idx = newSelection.indexOf(option);
+        if (idx > -1) {
+          newSelection.splice(idx, 1);
+        } else {
+          newSelection.push(option);
+        }
+        return newSelection;
+      }
+    },
+
+    // Methods
+    focusInput: function focusInput() {
+      var input = this.element.querySelector('.ember-power-select-trigger-multiple-input');
+      if (input) {
+        input.focus();
       }
     }
   });
@@ -87224,86 +87550,6 @@ define('ember-power-select/components/power-select-multiple/trigger', ['exports'
         return list.objectAt(index);
       } else {
         return get(list, index);
-      }
-    }
-  });
-});
-define('ember-power-select/components/power-select-multiple', ['exports', 'ember', 'ember-power-select/templates/components/power-select-multiple', 'ember-power-select/utils/computed-fallback-if-undefined'], function (exports, _ember, _emberPowerSelectTemplatesComponentsPowerSelectMultiple, _emberPowerSelectUtilsComputedFallbackIfUndefined) {
-  'use strict';
-
-  var computed = _ember['default'].computed;
-
-  exports['default'] = _ember['default'].Component.extend({
-    layout: _emberPowerSelectTemplatesComponentsPowerSelectMultiple['default'],
-    // Config
-    triggerComponent: (0, _emberPowerSelectUtilsComputedFallbackIfUndefined['default'])('power-select-multiple/trigger'),
-    beforeOptionsComponent: (0, _emberPowerSelectUtilsComputedFallbackIfUndefined['default'])(null),
-
-    // CPs
-    concatenatedTriggerClass: computed('triggerClass', function () {
-      var classes = ['ember-power-select-multiple-trigger'];
-      if (this.get('triggerClass')) {
-        classes.push(this.get('triggerClass'));
-      }
-      return classes.join(' ');
-    }),
-
-    // Actions
-    actions: {
-      handleOpen: function handleOpen(select, e) {
-        var action = this.get('onopen');
-        if (action && action(select, e) === false) {
-          return false;
-        }
-        this.focusInput();
-      },
-
-      handleFocus: function handleFocus(select, e) {
-        var action = this.get('onfocus');
-        if (action) {
-          action(select, e);
-        }
-        this.focusInput();
-      },
-
-      handleKeydown: function handleKeydown(select, e) {
-        var action = this.get('onkeydown');
-        if (action && action(select, e) === false) {
-          e.stopPropagation();
-          return false;
-        }
-        var selected = _ember['default'].A(this.get('selected') || []);
-        if (e.keyCode === 13 && select.isOpen) {
-          e.stopPropagation();
-          if (select.highlighted !== undefined) {
-            if (selected.indexOf(select.highlighted) === -1) {
-              select.actions.choose(select.highlighted, e);
-            } else {
-              select.actions.close(e);
-            }
-          } else {
-            select.actions.close(e);
-          }
-        }
-      },
-
-      buildSelection: function buildSelection(option) {
-        var newSelection = (this.get('selected') || []).slice(0);
-        var idx = newSelection.indexOf(option);
-        if (idx > -1) {
-          newSelection.splice(idx, 1);
-        } else {
-          newSelection.push(option);
-        }
-        return newSelection;
-      }
-    },
-
-    // Methods
-    focusInput: function focusInput() {
-      var input = this.element.querySelector('.ember-power-select-trigger-multiple-input');
-      if (input) {
-        input.focus();
       }
     }
   });
@@ -87827,6 +88073,168 @@ define('ember-power-select/components/power-select', ['exports', 'ember', 'ember
     }
   });
 });
+define('ember-power-select/components/power-select/before-options', ['exports', 'ember', 'ember-power-select/templates/components/power-select/before-options', 'ember-power-select/utils/update-input-value'], function (exports, _ember, _emberPowerSelectTemplatesComponentsPowerSelectBeforeOptions, _emberPowerSelectUtilsUpdateInputValue) {
+  'use strict';
+
+  var run = _ember['default'].run;
+
+  exports['default'] = _ember['default'].Component.extend({
+    tagName: '',
+    layout: _emberPowerSelectTemplatesComponentsPowerSelectBeforeOptions['default'],
+
+    // Lifecycle hooks
+    didReceiveAttrs: function didReceiveAttrs(_ref) {
+      var oldAttrs = _ref.oldAttrs;
+      var newAttrs = _ref.newAttrs;
+
+      this._super.apply(this, arguments);
+      if (newAttrs.searchText !== undefined && newAttrs.searchText !== null) {
+        run.scheduleOnce('afterRender', this, this.updateInput, newAttrs.searchText);
+      }
+    },
+
+    didInsertElement: function didInsertElement() {
+      this._super.apply(this, arguments);
+      this.focusInput();
+      this.get('eventSender').on('focus', this, this.focusInput);
+    },
+
+    willDestroy: function willDestroy() {
+      this._super.apply(this, arguments);
+      if (this.get('searchEnabled')) {
+        this.get('select.actions.search')('');
+      }
+      this.get('eventSender').off('focus', this, this.focusInput);
+    },
+
+    // Actions
+    actions: {
+      handleKeydown: function handleKeydown(e) {
+        var select = this.get('select');
+        if (e.keyCode === 13) {
+          var onkeydown = this.get('onkeydown');
+          if (onkeydown) {
+            onkeydown(select, e);
+          }
+          if (e.defaultPrevented) {
+            return;
+          }
+          select.actions.choose(this.get('highlighted'), e);
+        } else if (e.keyCode === 32) {
+          // noop
+        } else {
+            select.actions.handleKeydown(e);
+          }
+      }
+    },
+
+    // Methods
+    updateInput: function updateInput(value) {
+      (0, _emberPowerSelectUtilsUpdateInputValue['default'])(this.input, value);
+    },
+
+    focusInput: function focusInput() {
+      this.input = self.document.querySelector('.ember-power-select-search input');
+      if (this.input) {
+        run.scheduleOnce('afterRender', this.input, 'focus');
+      }
+    }
+  });
+});
+define('ember-power-select/components/power-select/options', ['exports', 'ember', 'ember-power-select/templates/components/power-select/options'], function (exports, _ember, _emberPowerSelectTemplatesComponentsPowerSelectOptions) {
+  'use strict';
+
+  exports['default'] = _ember['default'].Component.extend({
+    isTouchDevice: !!self.window && 'ontouchstart' in self.window,
+    layout: _emberPowerSelectTemplatesComponentsPowerSelectOptions['default'],
+    tagName: 'ul',
+    attributeBindings: ['role', 'aria-controls'],
+    role: 'listbox',
+
+    // Lifecycle hooks
+    didInsertElement: function didInsertElement() {
+      var _this = this;
+
+      this._super.apply(this, arguments);
+      if (this.get('role') === 'group') {
+        return;
+      }
+      var findOptionAndPerform = function findOptionAndPerform(action, e) {
+        var optionItem = _ember['default'].$(e.target).closest('[data-option-index]');
+        if (!optionItem || !(0 in optionItem)) {
+          return;
+        }
+        action(_this._optionFromIndex(optionItem[0].dataset.optionIndex), e);
+      };
+      this.element.addEventListener('mouseup', function (e) {
+        return findOptionAndPerform(_this.get('select.actions.choose'), e);
+      });
+      this.element.addEventListener('mouseover', function (e) {
+        return findOptionAndPerform(_this.get('select.actions.highlight'), e);
+      });
+      if (this.get('isTouchDevice')) {
+        this._addTouchEvents();
+      }
+    },
+
+    // Methods
+    _addTouchEvents: function _addTouchEvents() {
+      var _this2 = this;
+
+      var touchMoveHandler = function touchMoveHandler() {
+        _this2.hasMoved = true;
+        _this2.element.removeEventListener('touchmove', touchMoveHandler);
+      };
+      // Add touch event handlers to detect taps
+      this.element.addEventListener('touchstart', function () {
+        _this2.element.addEventListener('touchmove', touchMoveHandler);
+      });
+      this.element.addEventListener('touchend', function (e) {
+        e.preventDefault();
+        if (_this2.hasMoved) {
+          _this2.hasMoved = false;
+          return;
+        }
+        if (e.target.dataset.optionIndex) {
+          _this2.get('select.actions.choose')(_this2._optionFromIndex(e.target.dataset.optionIndex), e);
+        }
+      });
+    },
+
+    _optionFromIndex: function _optionFromIndex(index) {
+      var parts = index.split('.');
+      var options = this.get('options');
+      if (!options.objectAt) {
+        options = _ember['default'].A(options);
+      }
+      var option = options.objectAt(parseInt(parts[0], 10));
+      for (var i = 1; i < parts.length; i++) {
+        var groupOptions = option.options;
+        if (!groupOptions.objectAt) {
+          groupOptions = _ember['default'].A(groupOptions);
+        }
+        option = groupOptions.objectAt(parseInt(parts[i], 10));
+      }
+      return option;
+    }
+  });
+});
+define('ember-power-select/components/power-select/trigger', ['exports', 'ember', 'ember-power-select/templates/components/power-select/trigger'], function (exports, _ember, _emberPowerSelectTemplatesComponentsPowerSelectTrigger) {
+  'use strict';
+
+  exports['default'] = _ember['default'].Component.extend({
+    layout: _emberPowerSelectTemplatesComponentsPowerSelectTrigger['default'],
+    tagName: '',
+
+    // Actions
+    actions: {
+      clear: function clear(e) {
+        e.stopPropagation();
+        this.get('select.actions.select')(null);
+      }
+    }
+  });
+});
 define('ember-power-select/helpers/ember-power-select-is-selected', ['exports', 'ember'], function (exports, _ember) {
   'use strict';
 
@@ -87872,6 +88280,1091 @@ define('ember-power-select/helpers/ember-power-select-is-selected', ['exports', 
   }
 
   exports['default'] = _ember['default'].Helper.helper(emberPowerSelectIsSelected);
+});
+define("ember-power-select/templates/components/power-select-multiple", ["exports"], function (exports) {
+  "use strict";
+
+  exports["default"] = Ember.HTMLBars.template((function () {
+    var child0 = (function () {
+      var child0 = (function () {
+        return {
+          meta: {
+            "fragmentReason": false,
+            "revision": "Ember@2.5.1",
+            "loc": {
+              "source": null,
+              "start": {
+                "line": 2,
+                "column": 2
+              },
+              "end": {
+                "line": 48,
+                "column": 4
+              }
+            },
+            "moduleName": "modules/ember-power-select/templates/components/power-select-multiple.hbs"
+          },
+          isEmpty: false,
+          arity: 2,
+          cachedFragment: null,
+          hasRendered: false,
+          buildFragment: function buildFragment(dom) {
+            var el0 = dom.createDocumentFragment();
+            var el1 = dom.createTextNode("      ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createComment("");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createTextNode("\n");
+            dom.appendChild(el0, el1);
+            return el0;
+          },
+          buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+            var morphs = new Array(1);
+            morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
+            return morphs;
+          },
+          statements: [["inline", "yield", [["get", "option", ["loc", [null, [47, 14], [47, 20]]]], ["get", "term", ["loc", [null, [47, 21], [47, 25]]]]], [], ["loc", [null, [47, 6], [47, 27]]]]],
+          locals: ["option", "term"],
+          templates: []
+        };
+      })();
+      var child1 = (function () {
+        return {
+          meta: {
+            "fragmentReason": false,
+            "revision": "Ember@2.5.1",
+            "loc": {
+              "source": null,
+              "start": {
+                "line": 48,
+                "column": 4
+              },
+              "end": {
+                "line": 50,
+                "column": 2
+              }
+            },
+            "moduleName": "modules/ember-power-select/templates/components/power-select-multiple.hbs"
+          },
+          isEmpty: false,
+          arity: 0,
+          cachedFragment: null,
+          hasRendered: false,
+          buildFragment: function buildFragment(dom) {
+            var el0 = dom.createDocumentFragment();
+            var el1 = dom.createTextNode("      ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createComment("");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createTextNode("\n");
+            dom.appendChild(el0, el1);
+            return el0;
+          },
+          buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+            var morphs = new Array(1);
+            morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
+            return morphs;
+          },
+          statements: [["inline", "yield", [], ["to", "inverse"], ["loc", [null, [49, 6], [49, 28]]]]],
+          locals: [],
+          templates: []
+        };
+      })();
+      return {
+        meta: {
+          "fragmentReason": {
+            "name": "missing-wrapper",
+            "problems": ["wrong-type"]
+          },
+          "revision": "Ember@2.5.1",
+          "loc": {
+            "source": null,
+            "start": {
+              "line": 1,
+              "column": 0
+            },
+            "end": {
+              "line": 51,
+              "column": 0
+            }
+          },
+          "moduleName": "modules/ember-power-select/templates/components/power-select-multiple.hbs"
+        },
+        isEmpty: false,
+        arity: 0,
+        cachedFragment: null,
+        hasRendered: false,
+        buildFragment: function buildFragment(dom) {
+          var el0 = dom.createDocumentFragment();
+          var el1 = dom.createComment("");
+          dom.appendChild(el0, el1);
+          return el0;
+        },
+        buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+          var morphs = new Array(1);
+          morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
+          dom.insertBoundary(fragment, 0);
+          dom.insertBoundary(fragment, null);
+          return morphs;
+        },
+        statements: [["block", "power-select", [], ["afterOptionsComponent", ["subexpr", "@mut", [["get", "afterOptionsComponent", ["loc", [null, [3, 28], [3, 49]]]]], [], []], "allowClear", ["subexpr", "@mut", [["get", "allowClear", ["loc", [null, [4, 17], [4, 27]]]]], [], []], "ariaDescribedBy", ["subexpr", "@mut", [["get", "ariaDescribedBy", ["loc", [null, [5, 22], [5, 37]]]]], [], []], "ariaInvalid", ["subexpr", "@mut", [["get", "ariaInvalid", ["loc", [null, [6, 18], [6, 29]]]]], [], []], "ariaLabel", ["subexpr", "@mut", [["get", "ariaLabel", ["loc", [null, [7, 16], [7, 25]]]]], [], []], "ariaLabelledBy", ["subexpr", "@mut", [["get", "ariaLabelledBy", ["loc", [null, [8, 21], [8, 35]]]]], [], []], "beforeOptionsComponent", ["subexpr", "@mut", [["get", "beforeOptionsComponent", ["loc", [null, [9, 29], [9, 51]]]]], [], []], "buildSelection", ["subexpr", "action", ["buildSelection"], [], ["loc", [null, [10, 21], [10, 46]]]], "class", ["subexpr", "@mut", [["get", "class", ["loc", [null, [11, 12], [11, 17]]]]], [], []], "closeOnSelect", ["subexpr", "@mut", [["get", "closeOnSelect", ["loc", [null, [12, 20], [12, 33]]]]], [], []], "destination", ["subexpr", "@mut", [["get", "destination", ["loc", [null, [13, 18], [13, 29]]]]], [], []], "dir", ["subexpr", "@mut", [["get", "dir", ["loc", [null, [14, 10], [14, 13]]]]], [], []], "disabled", ["subexpr", "@mut", [["get", "disabled", ["loc", [null, [15, 15], [15, 23]]]]], [], []], "dropdownClass", ["subexpr", "@mut", [["get", "dropdownClass", ["loc", [null, [16, 20], [16, 33]]]]], [], []], "extra", ["subexpr", "@mut", [["get", "extra", ["loc", [null, [17, 12], [17, 17]]]]], [], []], "horizontalPosition", ["subexpr", "@mut", [["get", "horizontalPosition", ["loc", [null, [18, 25], [18, 43]]]]], [], []], "initiallyOpened", ["subexpr", "@mut", [["get", "initiallyOpened", ["loc", [null, [19, 22], [19, 37]]]]], [], []], "loadingMessage", ["subexpr", "@mut", [["get", "loadingMessage", ["loc", [null, [20, 21], [20, 35]]]]], [], []], "matcher", ["subexpr", "@mut", [["get", "matcher", ["loc", [null, [21, 14], [21, 21]]]]], [], []], "matchTriggerWidth", ["subexpr", "@mut", [["get", "matchTriggerWidth", ["loc", [null, [22, 24], [22, 41]]]]], [], []], "noMatchesMessage", ["subexpr", "@mut", [["get", "noMatchesMessage", ["loc", [null, [23, 23], [23, 39]]]]], [], []], "onchange", ["subexpr", "@mut", [["get", "onchange", ["loc", [null, [24, 15], [24, 23]]]]], [], []], "onclose", ["subexpr", "@mut", [["get", "onclose", ["loc", [null, [25, 14], [25, 21]]]]], [], []], "onfocus", ["subexpr", "action", ["handleFocus"], [], ["loc", [null, [26, 14], [26, 36]]]], "oninput", ["subexpr", "@mut", [["get", "oninput", ["loc", [null, [27, 14], [27, 21]]]]], [], []], "onkeydown", ["subexpr", "action", ["handleKeydown"], [], ["loc", [null, [28, 16], [28, 40]]]], "onopen", ["subexpr", "action", ["handleOpen"], [], ["loc", [null, [29, 13], [29, 34]]]], "options", ["subexpr", "@mut", [["get", "options", ["loc", [null, [30, 14], [30, 21]]]]], [], []], "optionsComponent", ["subexpr", "@mut", [["get", "optionsComponent", ["loc", [null, [31, 23], [31, 39]]]]], [], []], "placeholder", ["subexpr", "@mut", [["get", "placeholder", ["loc", [null, [32, 18], [32, 29]]]]], [], []], "renderInPlace", ["subexpr", "@mut", [["get", "renderInPlace", ["loc", [null, [33, 20], [33, 33]]]]], [], []], "required", ["subexpr", "@mut", [["get", "required", ["loc", [null, [34, 15], [34, 23]]]]], [], []], "search", ["subexpr", "@mut", [["get", "search", ["loc", [null, [35, 13], [35, 19]]]]], [], []], "searchEnabled", ["subexpr", "@mut", [["get", "searchEnabled", ["loc", [null, [36, 20], [36, 33]]]]], [], []], "searchField", ["subexpr", "@mut", [["get", "searchField", ["loc", [null, [37, 18], [37, 29]]]]], [], []], "searchMessage", ["subexpr", "@mut", [["get", "searchMessage", ["loc", [null, [38, 20], [38, 33]]]]], [], []], "searchPlaceholder", ["subexpr", "@mut", [["get", "searchPlaceholder", ["loc", [null, [39, 24], [39, 41]]]]], [], []], "selected", ["subexpr", "@mut", [["get", "selected", ["loc", [null, [40, 15], [40, 23]]]]], [], []], "selectedItemComponent", ["subexpr", "@mut", [["get", "selectedItemComponent", ["loc", [null, [41, 28], [41, 49]]]]], [], []], "tabindex", ["subexpr", "@mut", [["get", "tabindex", ["loc", [null, [42, 15], [42, 23]]]]], [], []], "triggerClass", ["subexpr", "@mut", [["get", "concatenatedTriggerClass", ["loc", [null, [43, 19], [43, 43]]]]], [], []], "triggerComponent", ["subexpr", "@mut", [["get", "triggerComponent", ["loc", [null, [44, 23], [44, 39]]]]], [], []], "verticalPosition", ["subexpr", "@mut", [["get", "verticalPosition", ["loc", [null, [45, 23], [45, 39]]]]], [], []]], 0, 1, ["loc", [null, [2, 2], [50, 19]]]]],
+        locals: [],
+        templates: [child0, child1]
+      };
+    })();
+    var child1 = (function () {
+      var child0 = (function () {
+        return {
+          meta: {
+            "fragmentReason": false,
+            "revision": "Ember@2.5.1",
+            "loc": {
+              "source": null,
+              "start": {
+                "line": 52,
+                "column": 2
+              },
+              "end": {
+                "line": 98,
+                "column": 2
+              }
+            },
+            "moduleName": "modules/ember-power-select/templates/components/power-select-multiple.hbs"
+          },
+          isEmpty: false,
+          arity: 2,
+          cachedFragment: null,
+          hasRendered: false,
+          buildFragment: function buildFragment(dom) {
+            var el0 = dom.createDocumentFragment();
+            var el1 = dom.createTextNode("      ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createComment("");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createTextNode("\n");
+            dom.appendChild(el0, el1);
+            return el0;
+          },
+          buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+            var morphs = new Array(1);
+            morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
+            return morphs;
+          },
+          statements: [["inline", "yield", [["get", "option", ["loc", [null, [97, 14], [97, 20]]]], ["get", "term", ["loc", [null, [97, 21], [97, 25]]]]], [], ["loc", [null, [97, 6], [97, 27]]]]],
+          locals: ["option", "term"],
+          templates: []
+        };
+      })();
+      return {
+        meta: {
+          "fragmentReason": false,
+          "revision": "Ember@2.5.1",
+          "loc": {
+            "source": null,
+            "start": {
+              "line": 51,
+              "column": 0
+            },
+            "end": {
+              "line": 99,
+              "column": 0
+            }
+          },
+          "moduleName": "modules/ember-power-select/templates/components/power-select-multiple.hbs"
+        },
+        isEmpty: false,
+        arity: 0,
+        cachedFragment: null,
+        hasRendered: false,
+        buildFragment: function buildFragment(dom) {
+          var el0 = dom.createDocumentFragment();
+          var el1 = dom.createComment("");
+          dom.appendChild(el0, el1);
+          return el0;
+        },
+        buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+          var morphs = new Array(1);
+          morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
+          dom.insertBoundary(fragment, 0);
+          dom.insertBoundary(fragment, null);
+          return morphs;
+        },
+        statements: [["block", "power-select", [], ["afterOptionsComponent", ["subexpr", "@mut", [["get", "afterOptionsComponent", ["loc", [null, [53, 28], [53, 49]]]]], [], []], "allowClear", ["subexpr", "@mut", [["get", "allowClear", ["loc", [null, [54, 17], [54, 27]]]]], [], []], "ariaDescribedBy", ["subexpr", "@mut", [["get", "ariaDescribedBy", ["loc", [null, [55, 22], [55, 37]]]]], [], []], "ariaInvalid", ["subexpr", "@mut", [["get", "ariaInvalid", ["loc", [null, [56, 18], [56, 29]]]]], [], []], "ariaLabel", ["subexpr", "@mut", [["get", "ariaLabel", ["loc", [null, [57, 16], [57, 25]]]]], [], []], "ariaLabelledBy", ["subexpr", "@mut", [["get", "ariaLabelledBy", ["loc", [null, [58, 21], [58, 35]]]]], [], []], "beforeOptionsComponent", ["subexpr", "@mut", [["get", "beforeOptionsComponent", ["loc", [null, [59, 29], [59, 51]]]]], [], []], "buildSelection", ["subexpr", "action", ["buildSelection"], [], ["loc", [null, [60, 21], [60, 46]]]], "class", ["subexpr", "@mut", [["get", "class", ["loc", [null, [61, 12], [61, 17]]]]], [], []], "closeOnSelect", ["subexpr", "@mut", [["get", "closeOnSelect", ["loc", [null, [62, 20], [62, 33]]]]], [], []], "destination", ["subexpr", "@mut", [["get", "destination", ["loc", [null, [63, 18], [63, 29]]]]], [], []], "dir", ["subexpr", "@mut", [["get", "dir", ["loc", [null, [64, 10], [64, 13]]]]], [], []], "disabled", ["subexpr", "@mut", [["get", "disabled", ["loc", [null, [65, 15], [65, 23]]]]], [], []], "dropdownClass", ["subexpr", "@mut", [["get", "dropdownClass", ["loc", [null, [66, 20], [66, 33]]]]], [], []], "extra", ["subexpr", "@mut", [["get", "extra", ["loc", [null, [67, 12], [67, 17]]]]], [], []], "horizontalPosition", ["subexpr", "@mut", [["get", "horizontalPosition", ["loc", [null, [68, 25], [68, 43]]]]], [], []], "initiallyOpened", ["subexpr", "@mut", [["get", "initiallyOpened", ["loc", [null, [69, 22], [69, 37]]]]], [], []], "loadingMessage", ["subexpr", "@mut", [["get", "loadingMessage", ["loc", [null, [70, 21], [70, 35]]]]], [], []], "matcher", ["subexpr", "@mut", [["get", "matcher", ["loc", [null, [71, 14], [71, 21]]]]], [], []], "matchTriggerWidth", ["subexpr", "@mut", [["get", "matchTriggerWidth", ["loc", [null, [72, 24], [72, 41]]]]], [], []], "noMatchesMessage", ["subexpr", "@mut", [["get", "noMatchesMessage", ["loc", [null, [73, 23], [73, 39]]]]], [], []], "onchange", ["subexpr", "@mut", [["get", "onchange", ["loc", [null, [74, 15], [74, 23]]]]], [], []], "onclose", ["subexpr", "@mut", [["get", "onclose", ["loc", [null, [75, 14], [75, 21]]]]], [], []], "onfocus", ["subexpr", "action", ["handleFocus"], [], ["loc", [null, [76, 14], [76, 36]]]], "oninput", ["subexpr", "@mut", [["get", "oninput", ["loc", [null, [77, 14], [77, 21]]]]], [], []], "onkeydown", ["subexpr", "action", ["handleKeydown"], [], ["loc", [null, [78, 16], [78, 40]]]], "onopen", ["subexpr", "action", ["handleOpen"], [], ["loc", [null, [79, 13], [79, 34]]]], "options", ["subexpr", "@mut", [["get", "options", ["loc", [null, [80, 14], [80, 21]]]]], [], []], "optionsComponent", ["subexpr", "@mut", [["get", "optionsComponent", ["loc", [null, [81, 23], [81, 39]]]]], [], []], "placeholder", ["subexpr", "@mut", [["get", "placeholder", ["loc", [null, [82, 18], [82, 29]]]]], [], []], "renderInPlace", ["subexpr", "@mut", [["get", "renderInPlace", ["loc", [null, [83, 20], [83, 33]]]]], [], []], "required", ["subexpr", "@mut", [["get", "required", ["loc", [null, [84, 15], [84, 23]]]]], [], []], "search", ["subexpr", "@mut", [["get", "search", ["loc", [null, [85, 13], [85, 19]]]]], [], []], "searchEnabled", ["subexpr", "@mut", [["get", "searchEnabled", ["loc", [null, [86, 20], [86, 33]]]]], [], []], "searchField", ["subexpr", "@mut", [["get", "searchField", ["loc", [null, [87, 18], [87, 29]]]]], [], []], "searchMessage", ["subexpr", "@mut", [["get", "searchMessage", ["loc", [null, [88, 20], [88, 33]]]]], [], []], "searchPlaceholder", ["subexpr", "@mut", [["get", "searchPlaceholder", ["loc", [null, [89, 24], [89, 41]]]]], [], []], "selected", ["subexpr", "@mut", [["get", "selected", ["loc", [null, [90, 15], [90, 23]]]]], [], []], "selectedItemComponent", ["subexpr", "@mut", [["get", "selectedItemComponent", ["loc", [null, [91, 28], [91, 49]]]]], [], []], "tabindex", ["subexpr", "@mut", [["get", "tabindex", ["loc", [null, [92, 15], [92, 23]]]]], [], []], "triggerClass", ["subexpr", "@mut", [["get", "concatenatedTriggerClass", ["loc", [null, [93, 19], [93, 43]]]]], [], []], "triggerComponent", ["subexpr", "@mut", [["get", "triggerComponent", ["loc", [null, [94, 23], [94, 39]]]]], [], []], "verticalPosition", ["subexpr", "@mut", [["get", "verticalPosition", ["loc", [null, [95, 23], [95, 39]]]]], [], []]], 0, null, ["loc", [null, [52, 2], [98, 19]]]]],
+        locals: [],
+        templates: [child0]
+      };
+    })();
+    return {
+      meta: {
+        "fragmentReason": {
+          "name": "missing-wrapper",
+          "problems": ["wrong-type"]
+        },
+        "revision": "Ember@2.5.1",
+        "loc": {
+          "source": null,
+          "start": {
+            "line": 1,
+            "column": 0
+          },
+          "end": {
+            "line": 100,
+            "column": 0
+          }
+        },
+        "moduleName": "modules/ember-power-select/templates/components/power-select-multiple.hbs"
+      },
+      isEmpty: false,
+      arity: 0,
+      cachedFragment: null,
+      hasRendered: false,
+      buildFragment: function buildFragment(dom) {
+        var el0 = dom.createDocumentFragment();
+        var el1 = dom.createComment("");
+        dom.appendChild(el0, el1);
+        return el0;
+      },
+      buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+        var morphs = new Array(1);
+        morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
+        dom.insertBoundary(fragment, 0);
+        dom.insertBoundary(fragment, null);
+        return morphs;
+      },
+      statements: [["block", "if", [["subexpr", "hasBlock", ["inverse"], [], ["loc", [null, [1, 6], [1, 26]]]]], [], 0, 1, ["loc", [null, [1, 0], [99, 7]]]]],
+      locals: [],
+      templates: [child0, child1]
+    };
+  })());
+});
+define("ember-power-select/templates/components/power-select-multiple/trigger", ["exports"], function (exports) {
+  "use strict";
+
+  exports["default"] = Ember.HTMLBars.template((function () {
+    var child0 = (function () {
+      var child0 = (function () {
+        return {
+          meta: {
+            "fragmentReason": false,
+            "revision": "Ember@2.5.1",
+            "loc": {
+              "source": null,
+              "start": {
+                "line": 4,
+                "column": 6
+              },
+              "end": {
+                "line": 9,
+                "column": 6
+              }
+            },
+            "moduleName": "modules/ember-power-select/templates/components/power-select-multiple/trigger.hbs"
+          },
+          isEmpty: false,
+          arity: 0,
+          cachedFragment: null,
+          hasRendered: false,
+          buildFragment: function buildFragment(dom) {
+            var el0 = dom.createDocumentFragment();
+            var el1 = dom.createTextNode("        ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createElement("span");
+            dom.setAttribute(el1, "role", "button");
+            dom.setAttribute(el1, "aria-label", "remove element");
+            dom.setAttribute(el1, "class", "ember-power-select-multiple-remove-btn");
+            var el2 = dom.createTextNode("×");
+            dom.appendChild(el1, el2);
+            dom.appendChild(el0, el1);
+            var el1 = dom.createTextNode("\n");
+            dom.appendChild(el0, el1);
+            return el0;
+          },
+          buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+            var element1 = dom.childAt(fragment, [1]);
+            var morphs = new Array(1);
+            morphs[0] = dom.createAttrMorph(element1, 'data-selected-index');
+            return morphs;
+          },
+          statements: [["attribute", "data-selected-index", ["get", "idx", ["loc", [null, [8, 32], [8, 35]]]]]],
+          locals: [],
+          templates: []
+        };
+      })();
+      var child1 = (function () {
+        return {
+          meta: {
+            "fragmentReason": false,
+            "revision": "Ember@2.5.1",
+            "loc": {
+              "source": null,
+              "start": {
+                "line": 10,
+                "column": 6
+              },
+              "end": {
+                "line": 12,
+                "column": 6
+              }
+            },
+            "moduleName": "modules/ember-power-select/templates/components/power-select-multiple/trigger.hbs"
+          },
+          isEmpty: false,
+          arity: 0,
+          cachedFragment: null,
+          hasRendered: false,
+          buildFragment: function buildFragment(dom) {
+            var el0 = dom.createDocumentFragment();
+            var el1 = dom.createTextNode("        ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createComment("");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createTextNode("\n");
+            dom.appendChild(el0, el1);
+            return el0;
+          },
+          buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+            var morphs = new Array(1);
+            morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
+            return morphs;
+          },
+          statements: [["inline", "component", [["get", "selectedItemComponent", ["loc", [null, [11, 20], [11, 41]]]]], ["selected", ["subexpr", "@mut", [["get", "opt", ["loc", [null, [11, 51], [11, 54]]]]], [], []], "lastSearchedText", ["subexpr", "@mut", [["get", "lastSearchedText", ["loc", [null, [11, 72], [11, 88]]]]], [], []]], ["loc", [null, [11, 8], [11, 90]]]]],
+          locals: [],
+          templates: []
+        };
+      })();
+      var child2 = (function () {
+        return {
+          meta: {
+            "fragmentReason": false,
+            "revision": "Ember@2.5.1",
+            "loc": {
+              "source": null,
+              "start": {
+                "line": 12,
+                "column": 6
+              },
+              "end": {
+                "line": 14,
+                "column": 6
+              }
+            },
+            "moduleName": "modules/ember-power-select/templates/components/power-select-multiple/trigger.hbs"
+          },
+          isEmpty: false,
+          arity: 0,
+          cachedFragment: null,
+          hasRendered: false,
+          buildFragment: function buildFragment(dom) {
+            var el0 = dom.createDocumentFragment();
+            var el1 = dom.createTextNode("        ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createComment("");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createTextNode("\n");
+            dom.appendChild(el0, el1);
+            return el0;
+          },
+          buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+            var morphs = new Array(1);
+            morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
+            return morphs;
+          },
+          statements: [["inline", "yield", [["get", "opt", ["loc", [null, [13, 16], [13, 19]]]], ["get", "lastSearchedText", ["loc", [null, [13, 20], [13, 36]]]]], [], ["loc", [null, [13, 8], [13, 38]]]]],
+          locals: [],
+          templates: []
+        };
+      })();
+      return {
+        meta: {
+          "fragmentReason": false,
+          "revision": "Ember@2.5.1",
+          "loc": {
+            "source": null,
+            "start": {
+              "line": 2,
+              "column": 2
+            },
+            "end": {
+              "line": 16,
+              "column": 2
+            }
+          },
+          "moduleName": "modules/ember-power-select/templates/components/power-select-multiple/trigger.hbs"
+        },
+        isEmpty: false,
+        arity: 2,
+        cachedFragment: null,
+        hasRendered: false,
+        buildFragment: function buildFragment(dom) {
+          var el0 = dom.createDocumentFragment();
+          var el1 = dom.createTextNode("    ");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createElement("li");
+          dom.setAttribute(el1, "class", "ember-power-select-multiple-option");
+          var el2 = dom.createTextNode("\n");
+          dom.appendChild(el1, el2);
+          var el2 = dom.createComment("");
+          dom.appendChild(el1, el2);
+          var el2 = dom.createComment("");
+          dom.appendChild(el1, el2);
+          var el2 = dom.createTextNode("    ");
+          dom.appendChild(el1, el2);
+          dom.appendChild(el0, el1);
+          var el1 = dom.createTextNode("\n");
+          dom.appendChild(el0, el1);
+          return el0;
+        },
+        buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+          var element2 = dom.childAt(fragment, [1]);
+          var morphs = new Array(2);
+          morphs[0] = dom.createMorphAt(element2, 1, 1);
+          morphs[1] = dom.createMorphAt(element2, 2, 2);
+          return morphs;
+        },
+        statements: [["block", "unless", [["get", "disabled", ["loc", [null, [4, 16], [4, 24]]]]], [], 0, null, ["loc", [null, [4, 6], [9, 17]]]], ["block", "if", [["get", "selectedItemComponent", ["loc", [null, [10, 12], [10, 33]]]]], [], 1, 2, ["loc", [null, [10, 6], [14, 13]]]]],
+        locals: ["opt", "idx"],
+        templates: [child0, child1, child2]
+      };
+    })();
+    var child1 = (function () {
+      return {
+        meta: {
+          "fragmentReason": false,
+          "revision": "Ember@2.5.1",
+          "loc": {
+            "source": null,
+            "start": {
+              "line": 17,
+              "column": 2
+            },
+            "end": {
+              "line": 26,
+              "column": 2
+            }
+          },
+          "moduleName": "modules/ember-power-select/templates/components/power-select-multiple/trigger.hbs"
+        },
+        isEmpty: false,
+        arity: 0,
+        cachedFragment: null,
+        hasRendered: false,
+        buildFragment: function buildFragment(dom) {
+          var el0 = dom.createDocumentFragment();
+          var el1 = dom.createTextNode("    ");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createElement("input");
+          dom.setAttribute(el1, "type", "search");
+          dom.setAttribute(el1, "tabindex", "0");
+          dom.setAttribute(el1, "autocomplete", "off");
+          dom.setAttribute(el1, "autocorrect", "off");
+          dom.setAttribute(el1, "autocapitalize", "off");
+          dom.setAttribute(el1, "spellcheck", "false");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createTextNode("\n");
+          dom.appendChild(el0, el1);
+          return el0;
+        },
+        buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+          var element0 = dom.childAt(fragment, [1]);
+          var morphs = new Array(7);
+          morphs[0] = dom.createAttrMorph(element0, 'class');
+          morphs[1] = dom.createAttrMorph(element0, 'aria-controls');
+          morphs[2] = dom.createAttrMorph(element0, 'style');
+          morphs[3] = dom.createAttrMorph(element0, 'placeholder');
+          morphs[4] = dom.createAttrMorph(element0, 'disabled');
+          morphs[5] = dom.createAttrMorph(element0, 'oninput');
+          morphs[6] = dom.createAttrMorph(element0, 'onkeydown');
+          return morphs;
+        },
+        statements: [["attribute", "class", ["concat", ["ember-power-select-trigger-multiple-input ", ["get", "elementId", ["loc", [null, [18, 76], [18, 85]]]], "-input"]]], ["attribute", "aria-controls", ["get", "listboxId", ["loc", [null, [20, 22], [20, 31]]]]], ["attribute", "style", ["get", "triggerMultipleInputStyle", ["loc", [null, [21, 14], [21, 39]]]]], ["attribute", "placeholder", ["get", "maybePlaceholder", ["loc", [null, [22, 20], [22, 36]]]]], ["attribute", "disabled", ["get", "disabled", ["loc", [null, [23, 17], [23, 25]]]]], ["attribute", "oninput", ["subexpr", "action", ["handleInput"], [], ["loc", [null, [24, 14], [24, 38]]]]], ["attribute", "onkeydown", ["subexpr", "action", ["handleKeydown"], [], ["loc", [null, [25, 16], [25, 42]]]]]],
+        locals: [],
+        templates: []
+      };
+    })();
+    return {
+      meta: {
+        "fragmentReason": {
+          "name": "missing-wrapper",
+          "problems": ["multiple-nodes"]
+        },
+        "revision": "Ember@2.5.1",
+        "loc": {
+          "source": null,
+          "start": {
+            "line": 1,
+            "column": 0
+          },
+          "end": {
+            "line": 28,
+            "column": 52
+          }
+        },
+        "moduleName": "modules/ember-power-select/templates/components/power-select-multiple/trigger.hbs"
+      },
+      isEmpty: false,
+      arity: 0,
+      cachedFragment: null,
+      hasRendered: false,
+      buildFragment: function buildFragment(dom) {
+        var el0 = dom.createDocumentFragment();
+        var el1 = dom.createElement("ul");
+        dom.setAttribute(el1, "class", "ember-power-select-multiple-options");
+        var el2 = dom.createTextNode("\n");
+        dom.appendChild(el1, el2);
+        var el2 = dom.createComment("");
+        dom.appendChild(el1, el2);
+        var el2 = dom.createComment("");
+        dom.appendChild(el1, el2);
+        dom.appendChild(el0, el1);
+        var el1 = dom.createTextNode("\n");
+        dom.appendChild(el0, el1);
+        var el1 = dom.createElement("span");
+        dom.setAttribute(el1, "class", "ember-power-select-status-icon");
+        dom.appendChild(el0, el1);
+        return el0;
+      },
+      buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+        var element3 = dom.childAt(fragment, [0]);
+        var morphs = new Array(3);
+        morphs[0] = dom.createAttrMorph(element3, 'id');
+        morphs[1] = dom.createMorphAt(element3, 1, 1);
+        morphs[2] = dom.createMorphAt(element3, 2, 2);
+        return morphs;
+      },
+      statements: [["attribute", "id", ["concat", [["get", "elementId", ["loc", [null, [1, 10], [1, 19]]]], "-ember-power-select-multiple-options"]]], ["block", "each", [["get", "selected", ["loc", [null, [2, 10], [2, 18]]]]], [], 0, null, ["loc", [null, [2, 2], [16, 11]]]], ["block", "if", [["get", "searchEnabled", ["loc", [null, [17, 8], [17, 21]]]]], [], 1, null, ["loc", [null, [17, 2], [26, 9]]]]],
+      locals: [],
+      templates: [child0, child1]
+    };
+  })());
+});
+define("ember-power-select/templates/components/power-select", ["exports"], function (exports) {
+  "use strict";
+
+  exports["default"] = Ember.HTMLBars.template((function () {
+    var child0 = (function () {
+      var child0 = (function () {
+        return {
+          meta: {
+            "fragmentReason": false,
+            "revision": "Ember@2.5.1",
+            "loc": {
+              "source": null,
+              "start": {
+                "line": 37,
+                "column": 2
+              },
+              "end": {
+                "line": 39,
+                "column": 2
+              }
+            },
+            "moduleName": "modules/ember-power-select/templates/components/power-select.hbs"
+          },
+          isEmpty: false,
+          arity: 0,
+          cachedFragment: null,
+          hasRendered: false,
+          buildFragment: function buildFragment(dom) {
+            var el0 = dom.createDocumentFragment();
+            var el1 = dom.createTextNode("    ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createElement("ul");
+            dom.setAttribute(el1, "class", "ember-power-select-options");
+            dom.setAttribute(el1, "role", "listbox");
+            var el2 = dom.createElement("li");
+            dom.setAttribute(el2, "class", "ember-power-select-option ember-power-select-option--search-message");
+            dom.setAttribute(el2, "role", "option");
+            var el3 = dom.createComment("");
+            dom.appendChild(el2, el3);
+            dom.appendChild(el1, el2);
+            dom.appendChild(el0, el1);
+            var el1 = dom.createTextNode("\n");
+            dom.appendChild(el0, el1);
+            return el0;
+          },
+          buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+            var morphs = new Array(1);
+            morphs[0] = dom.createMorphAt(dom.childAt(fragment, [1, 0]), 0, 0);
+            return morphs;
+          },
+          statements: [["content", "searchMessage", ["loc", [null, [38, 152], [38, 169]]]]],
+          locals: [],
+          templates: []
+        };
+      })();
+      var child1 = (function () {
+        var child0 = (function () {
+          var child0 = (function () {
+            return {
+              meta: {
+                "fragmentReason": false,
+                "revision": "Ember@2.5.1",
+                "loc": {
+                  "source": null,
+                  "start": {
+                    "line": 40,
+                    "column": 4
+                  },
+                  "end": {
+                    "line": 42,
+                    "column": 4
+                  }
+                },
+                "moduleName": "modules/ember-power-select/templates/components/power-select.hbs"
+              },
+              isEmpty: false,
+              arity: 0,
+              cachedFragment: null,
+              hasRendered: false,
+              buildFragment: function buildFragment(dom) {
+                var el0 = dom.createDocumentFragment();
+                var el1 = dom.createTextNode("      ");
+                dom.appendChild(el0, el1);
+                var el1 = dom.createComment("");
+                dom.appendChild(el0, el1);
+                var el1 = dom.createTextNode("\n");
+                dom.appendChild(el0, el1);
+                return el0;
+              },
+              buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+                var morphs = new Array(1);
+                morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
+                return morphs;
+              },
+              statements: [["inline", "yield", [], ["to", "inverse"], ["loc", [null, [41, 6], [41, 28]]]]],
+              locals: [],
+              templates: []
+            };
+          })();
+          var child1 = (function () {
+            var child0 = (function () {
+              return {
+                meta: {
+                  "fragmentReason": false,
+                  "revision": "Ember@2.5.1",
+                  "loc": {
+                    "source": null,
+                    "start": {
+                      "line": 42,
+                      "column": 4
+                    },
+                    "end": {
+                      "line": 44,
+                      "column": 4
+                    }
+                  },
+                  "moduleName": "modules/ember-power-select/templates/components/power-select.hbs"
+                },
+                isEmpty: false,
+                arity: 0,
+                cachedFragment: null,
+                hasRendered: false,
+                buildFragment: function buildFragment(dom) {
+                  var el0 = dom.createDocumentFragment();
+                  var el1 = dom.createTextNode("      ");
+                  dom.appendChild(el0, el1);
+                  var el1 = dom.createElement("ul");
+                  dom.setAttribute(el1, "class", "ember-power-select-options");
+                  dom.setAttribute(el1, "role", "listbox");
+                  var el2 = dom.createElement("li");
+                  dom.setAttribute(el2, "class", "ember-power-select-option ember-power-select-option--no-matches-message");
+                  dom.setAttribute(el2, "role", "option");
+                  var el3 = dom.createComment("");
+                  dom.appendChild(el2, el3);
+                  dom.appendChild(el1, el2);
+                  dom.appendChild(el0, el1);
+                  var el1 = dom.createTextNode("\n    ");
+                  dom.appendChild(el0, el1);
+                  return el0;
+                },
+                buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+                  var morphs = new Array(1);
+                  morphs[0] = dom.createMorphAt(dom.childAt(fragment, [1, 0]), 0, 0);
+                  return morphs;
+                },
+                statements: [["content", "noMatchesMessage", ["loc", [null, [43, 158], [43, 178]]]]],
+                locals: [],
+                templates: []
+              };
+            })();
+            return {
+              meta: {
+                "fragmentReason": false,
+                "revision": "Ember@2.5.1",
+                "loc": {
+                  "source": null,
+                  "start": {
+                    "line": 42,
+                    "column": 4
+                  },
+                  "end": {
+                    "line": 44,
+                    "column": 4
+                  }
+                },
+                "moduleName": "modules/ember-power-select/templates/components/power-select.hbs"
+              },
+              isEmpty: false,
+              arity: 0,
+              cachedFragment: null,
+              hasRendered: false,
+              buildFragment: function buildFragment(dom) {
+                var el0 = dom.createDocumentFragment();
+                var el1 = dom.createComment("");
+                dom.appendChild(el0, el1);
+                return el0;
+              },
+              buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+                var morphs = new Array(1);
+                morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
+                dom.insertBoundary(fragment, 0);
+                dom.insertBoundary(fragment, null);
+                return morphs;
+              },
+              statements: [["block", "if", [["get", "noMatchesMessage", ["loc", [null, [42, 14], [42, 30]]]]], [], 0, null, ["loc", [null, [42, 4], [44, 4]]]]],
+              locals: [],
+              templates: [child0]
+            };
+          })();
+          return {
+            meta: {
+              "fragmentReason": false,
+              "revision": "Ember@2.5.1",
+              "loc": {
+                "source": null,
+                "start": {
+                  "line": 39,
+                  "column": 2
+                },
+                "end": {
+                  "line": 45,
+                  "column": 2
+                }
+              },
+              "moduleName": "modules/ember-power-select/templates/components/power-select.hbs"
+            },
+            isEmpty: false,
+            arity: 0,
+            cachedFragment: null,
+            hasRendered: false,
+            buildFragment: function buildFragment(dom) {
+              var el0 = dom.createDocumentFragment();
+              var el1 = dom.createComment("");
+              dom.appendChild(el0, el1);
+              return el0;
+            },
+            buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+              var morphs = new Array(1);
+              morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
+              dom.insertBoundary(fragment, 0);
+              dom.insertBoundary(fragment, null);
+              return morphs;
+            },
+            statements: [["block", "if", [["subexpr", "hasBlock", ["inverse"], [], ["loc", [null, [40, 10], [40, 30]]]]], [], 0, 1, ["loc", [null, [40, 4], [44, 11]]]]],
+            locals: [],
+            templates: [child0, child1]
+          };
+        })();
+        var child1 = (function () {
+          var child0 = (function () {
+            return {
+              meta: {
+                "fragmentReason": false,
+                "revision": "Ember@2.5.1",
+                "loc": {
+                  "source": null,
+                  "start": {
+                    "line": 46,
+                    "column": 4
+                  },
+                  "end": {
+                    "line": 64,
+                    "column": 4
+                  }
+                },
+                "moduleName": "modules/ember-power-select/templates/components/power-select.hbs"
+              },
+              isEmpty: false,
+              arity: 2,
+              cachedFragment: null,
+              hasRendered: false,
+              buildFragment: function buildFragment(dom) {
+                var el0 = dom.createDocumentFragment();
+                var el1 = dom.createTextNode("      ");
+                dom.appendChild(el0, el1);
+                var el1 = dom.createComment("");
+                dom.appendChild(el0, el1);
+                var el1 = dom.createTextNode("\n");
+                dom.appendChild(el0, el1);
+                return el0;
+              },
+              buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+                var morphs = new Array(1);
+                morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
+                return morphs;
+              },
+              statements: [["inline", "yield", [["get", "option", ["loc", [null, [63, 14], [63, 20]]]], ["get", "term", ["loc", [null, [63, 21], [63, 25]]]]], [], ["loc", [null, [63, 6], [63, 27]]]]],
+              locals: ["option", "term"],
+              templates: []
+            };
+          })();
+          return {
+            meta: {
+              "fragmentReason": false,
+              "revision": "Ember@2.5.1",
+              "loc": {
+                "source": null,
+                "start": {
+                  "line": 45,
+                  "column": 2
+                },
+                "end": {
+                  "line": 65,
+                  "column": 2
+                }
+              },
+              "moduleName": "modules/ember-power-select/templates/components/power-select.hbs"
+            },
+            isEmpty: false,
+            arity: 0,
+            cachedFragment: null,
+            hasRendered: false,
+            buildFragment: function buildFragment(dom) {
+              var el0 = dom.createDocumentFragment();
+              var el1 = dom.createComment("");
+              dom.appendChild(el0, el1);
+              var el1 = dom.createTextNode("  ");
+              dom.appendChild(el0, el1);
+              return el0;
+            },
+            buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+              var morphs = new Array(1);
+              morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
+              dom.insertBoundary(fragment, 0);
+              return morphs;
+            },
+            statements: [["block", "component", [["get", "optionsComponent", ["loc", [null, [46, 17], [46, 33]]]]], ["allOptions", ["subexpr", "readonly", [["get", "results", ["loc", [null, [47, 27], [47, 34]]]]], [], ["loc", [null, [47, 17], [47, 35]]]], "aria-controls", ["subexpr", "readonly", [["get", "triggerId", ["loc", [null, [48, 30], [48, 39]]]]], [], ["loc", [null, [48, 20], [48, 40]]]], "class", "ember-power-select-options", "extra", ["subexpr", "readonly", [["get", "extra", ["loc", [null, [50, 22], [50, 27]]]]], [], ["loc", [null, [50, 12], [50, 28]]]], "groupIndex", "", "highlighted", ["subexpr", "readonly", [["get", "highlighted", ["loc", [null, [52, 28], [52, 39]]]]], [], ["loc", [null, [52, 18], [52, 40]]]], "id", ["subexpr", "readonly", [["get", "optionsId", ["loc", [null, [53, 19], [53, 28]]]]], [], ["loc", [null, [53, 9], [53, 29]]]], "lastSearchedText", ["subexpr", "readonly", [["get", "lastSearchedText", ["loc", [null, [54, 33], [54, 49]]]]], [], ["loc", [null, [54, 23], [54, 50]]]], "loading", ["subexpr", "readonly", [["get", "loading", ["loc", [null, [55, 24], [55, 31]]]]], [], ["loc", [null, [55, 14], [55, 32]]]], "loadingMessage", ["subexpr", "readonly", [["get", "loadingMessage", ["loc", [null, [56, 31], [56, 45]]]]], [], ["loc", [null, [56, 21], [56, 46]]]], "options", ["subexpr", "readonly", [["get", "results", ["loc", [null, [57, 24], [57, 31]]]]], [], ["loc", [null, [57, 14], [57, 32]]]], "optionsComponent", ["subexpr", "readonly", [["get", "optionsComponent", ["loc", [null, [58, 33], [58, 49]]]]], [], ["loc", [null, [58, 23], [58, 50]]]], "searchText", ["subexpr", "readonly", [["get", "searchText", ["loc", [null, [59, 27], [59, 37]]]]], [], ["loc", [null, [59, 17], [59, 38]]]], "select", ["subexpr", "readonly", [["get", "publicAPI", ["loc", [null, [60, 23], [60, 32]]]]], [], ["loc", [null, [60, 13], [60, 33]]]], "selected", ["subexpr", "readonly", [["get", "resolvedSelected", ["loc", [null, [61, 25], [61, 41]]]]], [], ["loc", [null, [61, 15], [61, 42]]]]], 0, null, ["loc", [null, [46, 4], [64, 18]]]]],
+            locals: [],
+            templates: [child0]
+          };
+        })();
+        return {
+          meta: {
+            "fragmentReason": false,
+            "revision": "Ember@2.5.1",
+            "loc": {
+              "source": null,
+              "start": {
+                "line": 39,
+                "column": 2
+              },
+              "end": {
+                "line": 65,
+                "column": 2
+              }
+            },
+            "moduleName": "modules/ember-power-select/templates/components/power-select.hbs"
+          },
+          isEmpty: false,
+          arity: 0,
+          cachedFragment: null,
+          hasRendered: false,
+          buildFragment: function buildFragment(dom) {
+            var el0 = dom.createDocumentFragment();
+            var el1 = dom.createComment("");
+            dom.appendChild(el0, el1);
+            return el0;
+          },
+          buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+            var morphs = new Array(1);
+            morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
+            dom.insertBoundary(fragment, 0);
+            dom.insertBoundary(fragment, null);
+            return morphs;
+          },
+          statements: [["block", "if", [["get", "mustShowNoMessages", ["loc", [null, [39, 12], [39, 30]]]]], [], 0, 1, ["loc", [null, [39, 2], [65, 2]]]]],
+          locals: [],
+          templates: [child0, child1]
+        };
+      })();
+      return {
+        meta: {
+          "fragmentReason": {
+            "name": "missing-wrapper",
+            "problems": ["wrong-type", "multiple-nodes"]
+          },
+          "revision": "Ember@2.5.1",
+          "loc": {
+            "source": null,
+            "start": {
+              "line": 1,
+              "column": 0
+            },
+            "end": {
+              "line": 71,
+              "column": 0
+            }
+          },
+          "moduleName": "modules/ember-power-select/templates/components/power-select.hbs"
+        },
+        isEmpty: false,
+        arity: 1,
+        cachedFragment: null,
+        hasRendered: false,
+        buildFragment: function buildFragment(dom) {
+          var el0 = dom.createDocumentFragment();
+          var el1 = dom.createTextNode("  ");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createComment("");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createTextNode("\n");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createComment("");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createTextNode("  ");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createComment("");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createTextNode("\n");
+          dom.appendChild(el0, el1);
+          return el0;
+        },
+        buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+          var morphs = new Array(3);
+          morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
+          morphs[1] = dom.createMorphAt(fragment, 3, 3, contextualElement);
+          morphs[2] = dom.createMorphAt(fragment, 5, 5, contextualElement);
+          return morphs;
+        },
+        statements: [["inline", "component", [["get", "beforeOptionsComponent", ["loc", [null, [26, 14], [26, 36]]]]], ["searchText", ["subexpr", "readonly", [["get", "searchText", ["loc", [null, [27, 25], [27, 35]]]]], [], ["loc", [null, [27, 15], [27, 36]]]], "onkeydown", ["subexpr", "readonly", [["get", "onkeydown", ["loc", [null, [28, 24], [28, 33]]]]], [], ["loc", [null, [28, 14], [28, 34]]]], "select", ["subexpr", "readonly", [["get", "publicAPI", ["loc", [null, [29, 21], [29, 30]]]]], [], ["loc", [null, [29, 11], [29, 31]]]], "handleInput", ["subexpr", "action", ["handleInput"], [], ["loc", [null, [30, 16], [30, 38]]]], "searchPlaceholder", ["subexpr", "readonly", [["get", "searchPlaceholder", ["loc", [null, [31, 32], [31, 49]]]]], [], ["loc", [null, [31, 22], [31, 50]]]], "searchEnabled", ["subexpr", "readonly", [["get", "searchEnabled", ["loc", [null, [32, 28], [32, 41]]]]], [], ["loc", [null, [32, 18], [32, 42]]]], "highlighted", ["subexpr", "readonly", [["get", "highlighted", ["loc", [null, [33, 26], [33, 37]]]]], [], ["loc", [null, [33, 16], [33, 38]]]], "listboxId", ["subexpr", "readonly", [["get", "optionsId", ["loc", [null, [34, 24], [34, 33]]]]], [], ["loc", [null, [34, 14], [34, 34]]]], "extra", ["subexpr", "readonly", [["get", "extra", ["loc", [null, [35, 20], [35, 25]]]]], [], ["loc", [null, [35, 10], [35, 26]]]], "eventSender", ["subexpr", "@mut", [["get", "eventSender", ["loc", [null, [36, 16], [36, 27]]]]], [], []]], ["loc", [null, [26, 2], [36, 29]]]], ["block", "if", [["get", "mustShowSearchMessage", ["loc", [null, [37, 8], [37, 29]]]]], [], 0, 1, ["loc", [null, [37, 2], [65, 9]]]], ["inline", "component", [["get", "afterOptionsComponent", ["loc", [null, [66, 14], [66, 35]]]]], ["select", ["subexpr", "readonly", [["get", "publicAPI", ["loc", [null, [67, 21], [67, 30]]]]], [], ["loc", [null, [67, 11], [67, 31]]]], "searchPlaceholder", ["subexpr", "readonly", [["get", "searchPlaceholder", ["loc", [null, [68, 32], [68, 49]]]]], [], ["loc", [null, [68, 22], [68, 50]]]], "searchEnabled", ["subexpr", "readonly", [["get", "searchEnabled", ["loc", [null, [69, 28], [69, 41]]]]], [], ["loc", [null, [69, 18], [69, 42]]]], "extra", ["subexpr", "readonly", [["get", "extra", ["loc", [null, [70, 20], [70, 25]]]]], [], ["loc", [null, [70, 10], [70, 26]]]]], ["loc", [null, [66, 2], [70, 28]]]]],
+        locals: ["dropdown"],
+        templates: [child0, child1]
+      };
+    })();
+    var child1 = (function () {
+      var child0 = (function () {
+        return {
+          meta: {
+            "fragmentReason": false,
+            "revision": "Ember@2.5.1",
+            "loc": {
+              "source": null,
+              "start": {
+                "line": 72,
+                "column": 2
+              },
+              "end": {
+                "line": 93,
+                "column": 2
+              }
+            },
+            "moduleName": "modules/ember-power-select/templates/components/power-select.hbs"
+          },
+          isEmpty: false,
+          arity: 2,
+          cachedFragment: null,
+          hasRendered: false,
+          buildFragment: function buildFragment(dom) {
+            var el0 = dom.createDocumentFragment();
+            var el1 = dom.createTextNode("    ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createComment("");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createTextNode("\n");
+            dom.appendChild(el0, el1);
+            return el0;
+          },
+          buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+            var morphs = new Array(1);
+            morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
+            return morphs;
+          },
+          statements: [["inline", "yield", [["get", "opt", ["loc", [null, [92, 12], [92, 15]]]], ["get", "term", ["loc", [null, [92, 16], [92, 20]]]]], [], ["loc", [null, [92, 4], [92, 22]]]]],
+          locals: ["opt", "term"],
+          templates: []
+        };
+      })();
+      return {
+        meta: {
+          "fragmentReason": false,
+          "revision": "Ember@2.5.1",
+          "loc": {
+            "source": null,
+            "start": {
+              "line": 71,
+              "column": 0
+            },
+            "end": {
+              "line": 94,
+              "column": 0
+            }
+          },
+          "moduleName": "modules/ember-power-select/templates/components/power-select.hbs"
+        },
+        isEmpty: false,
+        arity: 0,
+        cachedFragment: null,
+        hasRendered: false,
+        buildFragment: function buildFragment(dom) {
+          var el0 = dom.createDocumentFragment();
+          var el1 = dom.createComment("");
+          dom.appendChild(el0, el1);
+          return el0;
+        },
+        buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+          var morphs = new Array(1);
+          morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
+          dom.insertBoundary(fragment, 0);
+          dom.insertBoundary(fragment, null);
+          return morphs;
+        },
+        statements: [["block", "component", [["get", "triggerComponent", ["loc", [null, [72, 15], [72, 31]]]]], ["allowClear", ["subexpr", "readonly", [["get", "allowClear", ["loc", [null, [73, 25], [73, 35]]]]], [], ["loc", [null, [73, 15], [73, 36]]]], "buildSelection", ["subexpr", "readonly", [["get", "buildSelection", ["loc", [null, [74, 29], [74, 43]]]]], [], ["loc", [null, [74, 19], [74, 44]]]], "disabled", ["subexpr", "readonly", [["get", "disabled", ["loc", [null, [75, 23], [75, 31]]]]], [], ["loc", [null, [75, 13], [75, 32]]]], "extra", ["subexpr", "readonly", [["get", "extra", ["loc", [null, [76, 20], [76, 25]]]]], [], ["loc", [null, [76, 10], [76, 26]]]], "handleInput", ["subexpr", "action", ["handleInput"], [], ["loc", [null, [77, 16], [77, 38]]]], "handleFocus", ["subexpr", "action", ["handleFocus", null], [], ["loc", [null, [78, 16], [78, 43]]]], "lastSearchedText", ["subexpr", "readonly", [["get", "lastSearchedText", ["loc", [null, [79, 31], [79, 47]]]]], [], ["loc", [null, [79, 21], [79, 48]]]], "listboxId", ["subexpr", "readonly", [["get", "optionsId", ["loc", [null, [80, 24], [80, 33]]]]], [], ["loc", [null, [80, 14], [80, 34]]]], "loading", ["subexpr", "readonly", [["get", "loading", ["loc", [null, [81, 22], [81, 29]]]]], [], ["loc", [null, [81, 12], [81, 30]]]], "onkeydown", ["subexpr", "readonly", [["get", "onkeydown", ["loc", [null, [82, 24], [82, 33]]]]], [], ["loc", [null, [82, 14], [82, 34]]]], "options", ["subexpr", "readonly", [["get", "results", ["loc", [null, [83, 22], [83, 29]]]]], [], ["loc", [null, [83, 12], [83, 30]]]], "placeholder", ["subexpr", "readonly", [["get", "placeholder", ["loc", [null, [84, 26], [84, 37]]]]], [], ["loc", [null, [84, 16], [84, 38]]]], "searchEnabled", ["subexpr", "readonly", [["get", "searchEnabled", ["loc", [null, [85, 28], [85, 41]]]]], [], ["loc", [null, [85, 18], [85, 42]]]], "searchField", ["subexpr", "readonly", [["get", "searchField", ["loc", [null, [86, 26], [86, 37]]]]], [], ["loc", [null, [86, 16], [86, 38]]]], "searchText", ["subexpr", "readonly", [["get", "searchText", ["loc", [null, [87, 25], [87, 35]]]]], [], ["loc", [null, [87, 15], [87, 36]]]], "select", ["subexpr", "readonly", [["get", "publicAPI", ["loc", [null, [88, 21], [88, 30]]]]], [], ["loc", [null, [88, 11], [88, 31]]]], "selected", ["subexpr", "readonly", [["get", "resolvedSelected", ["loc", [null, [89, 23], [89, 39]]]]], [], ["loc", [null, [89, 13], [89, 40]]]], "selectedItemComponent", ["subexpr", "readonly", [["get", "selectedItemComponent", ["loc", [null, [90, 36], [90, 57]]]]], [], ["loc", [null, [90, 26], [90, 58]]]]], 0, null, ["loc", [null, [72, 2], [93, 16]]]]],
+        locals: [],
+        templates: [child0]
+      };
+    })();
+    return {
+      meta: {
+        "fragmentReason": {
+          "name": "missing-wrapper",
+          "problems": ["wrong-type"]
+        },
+        "revision": "Ember@2.5.1",
+        "loc": {
+          "source": null,
+          "start": {
+            "line": 1,
+            "column": 0
+          },
+          "end": {
+            "line": 95,
+            "column": 0
+          }
+        },
+        "moduleName": "modules/ember-power-select/templates/components/power-select.hbs"
+      },
+      isEmpty: false,
+      arity: 0,
+      cachedFragment: null,
+      hasRendered: false,
+      buildFragment: function buildFragment(dom) {
+        var el0 = dom.createDocumentFragment();
+        var el1 = dom.createComment("");
+        dom.appendChild(el0, el1);
+        return el0;
+      },
+      buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+        var morphs = new Array(1);
+        morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
+        dom.insertBoundary(fragment, 0);
+        dom.insertBoundary(fragment, null);
+        return morphs;
+      },
+      statements: [["block", "basic-dropdown", [], ["ariaDescribedBy", ["subexpr", "readonly", [["get", "ariaDescribedBy", ["loc", [null, [2, 28], [2, 43]]]]], [], ["loc", [null, [2, 18], [2, 44]]]], "ariaInvalid", ["subexpr", "readonly", [["get", "ariaInvalid", ["loc", [null, [3, 24], [3, 35]]]]], [], ["loc", [null, [3, 14], [3, 36]]]], "ariaLabel", ["subexpr", "readonly", [["get", "ariaLabel", ["loc", [null, [4, 22], [4, 31]]]]], [], ["loc", [null, [4, 12], [4, 32]]]], "ariaLabelledBy", ["subexpr", "readonly", [["get", "ariaLabelledBy", ["loc", [null, [5, 27], [5, 41]]]]], [], ["loc", [null, [5, 17], [5, 42]]]], "ariaRequired", ["subexpr", "readonly", [["get", "required", ["loc", [null, [6, 25], [6, 33]]]]], [], ["loc", [null, [6, 15], [6, 34]]]], "class", ["subexpr", "readonly", [["get", "concatenatedClasses", ["loc", [null, [7, 18], [7, 37]]]]], [], ["loc", [null, [7, 8], [7, 38]]]], "destination", ["subexpr", "readonly", [["get", "destination", ["loc", [null, [8, 24], [8, 35]]]]], [], ["loc", [null, [8, 14], [8, 36]]]], "dir", ["subexpr", "readonly", [["get", "dir", ["loc", [null, [9, 16], [9, 19]]]]], [], ["loc", [null, [9, 6], [9, 20]]]], "disabled", ["subexpr", "readonly", [["get", "disabled", ["loc", [null, [10, 21], [10, 29]]]]], [], ["loc", [null, [10, 11], [10, 30]]]], "dropdownClass", ["subexpr", "readonly", [["get", "concatenatedDropdownClasses", ["loc", [null, [11, 26], [11, 53]]]]], [], ["loc", [null, [11, 16], [11, 54]]]], "horizontalPosition", ["subexpr", "readonly", [["get", "horizontalPosition", ["loc", [null, [12, 31], [12, 49]]]]], [], ["loc", [null, [12, 21], [12, 50]]]], "initiallyOpened", ["subexpr", "@mut", [["get", "initiallyOpened", ["loc", [null, [13, 18], [13, 33]]]]], [], []], "matchTriggerWidth", ["subexpr", "@mut", [["get", "matchTriggerWidth", ["loc", [null, [14, 20], [14, 37]]]]], [], []], "onClose", ["subexpr", "action", ["handleClose"], [], ["loc", [null, [15, 10], [15, 32]]]], "onFocus", ["subexpr", "action", ["handleFocus"], [], ["loc", [null, [16, 10], [16, 32]]]], "onKeydown", ["subexpr", "action", ["handleKeydown"], [], ["loc", [null, [17, 12], [17, 36]]]], "onOpen", ["subexpr", "action", ["handleOpen"], [], ["loc", [null, [18, 9], [18, 30]]]], "registerActionsInParent", ["subexpr", "action", ["registerDropdown"], [], ["loc", [null, [19, 26], [19, 53]]]], "renderInPlace", ["subexpr", "readonly", [["get", "renderInPlace", ["loc", [null, [20, 26], [20, 39]]]]], [], ["loc", [null, [20, 16], [20, 40]]]], "tabindex", ["subexpr", "readonly", [["get", "tabindex", ["loc", [null, [21, 21], [21, 29]]]]], [], ["loc", [null, [21, 11], [21, 30]]]], "triggerClass", ["subexpr", "readonly", [["get", "concatenatedTriggerClasses", ["loc", [null, [22, 25], [22, 51]]]]], [], ["loc", [null, [22, 15], [22, 52]]]], "triggerId", ["subexpr", "@mut", [["get", "triggerId", ["loc", [null, [23, 12], [23, 21]]]]], [], []], "verticalPosition", ["subexpr", "readonly", [["get", "verticalPosition", ["loc", [null, [24, 29], [24, 45]]]]], [], ["loc", [null, [24, 19], [24, 46]]]]], 0, 1, ["loc", [null, [1, 0], [94, 19]]]]],
+      locals: [],
+      templates: [child0, child1]
+    };
+  })());
 });
 define("ember-power-select/templates/components/power-select/before-options", ["exports"], function (exports) {
   "use strict";
@@ -88624,1091 +90117,6 @@ define("ember-power-select/templates/components/power-select/trigger", ["exports
         return morphs;
       },
       statements: [["block", "if", [["get", "selected", ["loc", [null, [1, 6], [1, 14]]]]], [], 0, 1, ["loc", [null, [1, 0], [12, 7]]]]],
-      locals: [],
-      templates: [child0, child1]
-    };
-  })());
-});
-define("ember-power-select/templates/components/power-select-multiple/trigger", ["exports"], function (exports) {
-  "use strict";
-
-  exports["default"] = Ember.HTMLBars.template((function () {
-    var child0 = (function () {
-      var child0 = (function () {
-        return {
-          meta: {
-            "fragmentReason": false,
-            "revision": "Ember@2.5.1",
-            "loc": {
-              "source": null,
-              "start": {
-                "line": 4,
-                "column": 6
-              },
-              "end": {
-                "line": 9,
-                "column": 6
-              }
-            },
-            "moduleName": "modules/ember-power-select/templates/components/power-select-multiple/trigger.hbs"
-          },
-          isEmpty: false,
-          arity: 0,
-          cachedFragment: null,
-          hasRendered: false,
-          buildFragment: function buildFragment(dom) {
-            var el0 = dom.createDocumentFragment();
-            var el1 = dom.createTextNode("        ");
-            dom.appendChild(el0, el1);
-            var el1 = dom.createElement("span");
-            dom.setAttribute(el1, "role", "button");
-            dom.setAttribute(el1, "aria-label", "remove element");
-            dom.setAttribute(el1, "class", "ember-power-select-multiple-remove-btn");
-            var el2 = dom.createTextNode("×");
-            dom.appendChild(el1, el2);
-            dom.appendChild(el0, el1);
-            var el1 = dom.createTextNode("\n");
-            dom.appendChild(el0, el1);
-            return el0;
-          },
-          buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-            var element1 = dom.childAt(fragment, [1]);
-            var morphs = new Array(1);
-            morphs[0] = dom.createAttrMorph(element1, 'data-selected-index');
-            return morphs;
-          },
-          statements: [["attribute", "data-selected-index", ["get", "idx", ["loc", [null, [8, 32], [8, 35]]]]]],
-          locals: [],
-          templates: []
-        };
-      })();
-      var child1 = (function () {
-        return {
-          meta: {
-            "fragmentReason": false,
-            "revision": "Ember@2.5.1",
-            "loc": {
-              "source": null,
-              "start": {
-                "line": 10,
-                "column": 6
-              },
-              "end": {
-                "line": 12,
-                "column": 6
-              }
-            },
-            "moduleName": "modules/ember-power-select/templates/components/power-select-multiple/trigger.hbs"
-          },
-          isEmpty: false,
-          arity: 0,
-          cachedFragment: null,
-          hasRendered: false,
-          buildFragment: function buildFragment(dom) {
-            var el0 = dom.createDocumentFragment();
-            var el1 = dom.createTextNode("        ");
-            dom.appendChild(el0, el1);
-            var el1 = dom.createComment("");
-            dom.appendChild(el0, el1);
-            var el1 = dom.createTextNode("\n");
-            dom.appendChild(el0, el1);
-            return el0;
-          },
-          buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-            var morphs = new Array(1);
-            morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
-            return morphs;
-          },
-          statements: [["inline", "component", [["get", "selectedItemComponent", ["loc", [null, [11, 20], [11, 41]]]]], ["selected", ["subexpr", "@mut", [["get", "opt", ["loc", [null, [11, 51], [11, 54]]]]], [], []], "lastSearchedText", ["subexpr", "@mut", [["get", "lastSearchedText", ["loc", [null, [11, 72], [11, 88]]]]], [], []]], ["loc", [null, [11, 8], [11, 90]]]]],
-          locals: [],
-          templates: []
-        };
-      })();
-      var child2 = (function () {
-        return {
-          meta: {
-            "fragmentReason": false,
-            "revision": "Ember@2.5.1",
-            "loc": {
-              "source": null,
-              "start": {
-                "line": 12,
-                "column": 6
-              },
-              "end": {
-                "line": 14,
-                "column": 6
-              }
-            },
-            "moduleName": "modules/ember-power-select/templates/components/power-select-multiple/trigger.hbs"
-          },
-          isEmpty: false,
-          arity: 0,
-          cachedFragment: null,
-          hasRendered: false,
-          buildFragment: function buildFragment(dom) {
-            var el0 = dom.createDocumentFragment();
-            var el1 = dom.createTextNode("        ");
-            dom.appendChild(el0, el1);
-            var el1 = dom.createComment("");
-            dom.appendChild(el0, el1);
-            var el1 = dom.createTextNode("\n");
-            dom.appendChild(el0, el1);
-            return el0;
-          },
-          buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-            var morphs = new Array(1);
-            morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
-            return morphs;
-          },
-          statements: [["inline", "yield", [["get", "opt", ["loc", [null, [13, 16], [13, 19]]]], ["get", "lastSearchedText", ["loc", [null, [13, 20], [13, 36]]]]], [], ["loc", [null, [13, 8], [13, 38]]]]],
-          locals: [],
-          templates: []
-        };
-      })();
-      return {
-        meta: {
-          "fragmentReason": false,
-          "revision": "Ember@2.5.1",
-          "loc": {
-            "source": null,
-            "start": {
-              "line": 2,
-              "column": 2
-            },
-            "end": {
-              "line": 16,
-              "column": 2
-            }
-          },
-          "moduleName": "modules/ember-power-select/templates/components/power-select-multiple/trigger.hbs"
-        },
-        isEmpty: false,
-        arity: 2,
-        cachedFragment: null,
-        hasRendered: false,
-        buildFragment: function buildFragment(dom) {
-          var el0 = dom.createDocumentFragment();
-          var el1 = dom.createTextNode("    ");
-          dom.appendChild(el0, el1);
-          var el1 = dom.createElement("li");
-          dom.setAttribute(el1, "class", "ember-power-select-multiple-option");
-          var el2 = dom.createTextNode("\n");
-          dom.appendChild(el1, el2);
-          var el2 = dom.createComment("");
-          dom.appendChild(el1, el2);
-          var el2 = dom.createComment("");
-          dom.appendChild(el1, el2);
-          var el2 = dom.createTextNode("    ");
-          dom.appendChild(el1, el2);
-          dom.appendChild(el0, el1);
-          var el1 = dom.createTextNode("\n");
-          dom.appendChild(el0, el1);
-          return el0;
-        },
-        buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-          var element2 = dom.childAt(fragment, [1]);
-          var morphs = new Array(2);
-          morphs[0] = dom.createMorphAt(element2, 1, 1);
-          morphs[1] = dom.createMorphAt(element2, 2, 2);
-          return morphs;
-        },
-        statements: [["block", "unless", [["get", "disabled", ["loc", [null, [4, 16], [4, 24]]]]], [], 0, null, ["loc", [null, [4, 6], [9, 17]]]], ["block", "if", [["get", "selectedItemComponent", ["loc", [null, [10, 12], [10, 33]]]]], [], 1, 2, ["loc", [null, [10, 6], [14, 13]]]]],
-        locals: ["opt", "idx"],
-        templates: [child0, child1, child2]
-      };
-    })();
-    var child1 = (function () {
-      return {
-        meta: {
-          "fragmentReason": false,
-          "revision": "Ember@2.5.1",
-          "loc": {
-            "source": null,
-            "start": {
-              "line": 17,
-              "column": 2
-            },
-            "end": {
-              "line": 26,
-              "column": 2
-            }
-          },
-          "moduleName": "modules/ember-power-select/templates/components/power-select-multiple/trigger.hbs"
-        },
-        isEmpty: false,
-        arity: 0,
-        cachedFragment: null,
-        hasRendered: false,
-        buildFragment: function buildFragment(dom) {
-          var el0 = dom.createDocumentFragment();
-          var el1 = dom.createTextNode("    ");
-          dom.appendChild(el0, el1);
-          var el1 = dom.createElement("input");
-          dom.setAttribute(el1, "type", "search");
-          dom.setAttribute(el1, "tabindex", "0");
-          dom.setAttribute(el1, "autocomplete", "off");
-          dom.setAttribute(el1, "autocorrect", "off");
-          dom.setAttribute(el1, "autocapitalize", "off");
-          dom.setAttribute(el1, "spellcheck", "false");
-          dom.appendChild(el0, el1);
-          var el1 = dom.createTextNode("\n");
-          dom.appendChild(el0, el1);
-          return el0;
-        },
-        buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-          var element0 = dom.childAt(fragment, [1]);
-          var morphs = new Array(7);
-          morphs[0] = dom.createAttrMorph(element0, 'class');
-          morphs[1] = dom.createAttrMorph(element0, 'aria-controls');
-          morphs[2] = dom.createAttrMorph(element0, 'style');
-          morphs[3] = dom.createAttrMorph(element0, 'placeholder');
-          morphs[4] = dom.createAttrMorph(element0, 'disabled');
-          morphs[5] = dom.createAttrMorph(element0, 'oninput');
-          morphs[6] = dom.createAttrMorph(element0, 'onkeydown');
-          return morphs;
-        },
-        statements: [["attribute", "class", ["concat", ["ember-power-select-trigger-multiple-input ", ["get", "elementId", ["loc", [null, [18, 76], [18, 85]]]], "-input"]]], ["attribute", "aria-controls", ["get", "listboxId", ["loc", [null, [20, 22], [20, 31]]]]], ["attribute", "style", ["get", "triggerMultipleInputStyle", ["loc", [null, [21, 14], [21, 39]]]]], ["attribute", "placeholder", ["get", "maybePlaceholder", ["loc", [null, [22, 20], [22, 36]]]]], ["attribute", "disabled", ["get", "disabled", ["loc", [null, [23, 17], [23, 25]]]]], ["attribute", "oninput", ["subexpr", "action", ["handleInput"], [], ["loc", [null, [24, 14], [24, 38]]]]], ["attribute", "onkeydown", ["subexpr", "action", ["handleKeydown"], [], ["loc", [null, [25, 16], [25, 42]]]]]],
-        locals: [],
-        templates: []
-      };
-    })();
-    return {
-      meta: {
-        "fragmentReason": {
-          "name": "missing-wrapper",
-          "problems": ["multiple-nodes"]
-        },
-        "revision": "Ember@2.5.1",
-        "loc": {
-          "source": null,
-          "start": {
-            "line": 1,
-            "column": 0
-          },
-          "end": {
-            "line": 28,
-            "column": 52
-          }
-        },
-        "moduleName": "modules/ember-power-select/templates/components/power-select-multiple/trigger.hbs"
-      },
-      isEmpty: false,
-      arity: 0,
-      cachedFragment: null,
-      hasRendered: false,
-      buildFragment: function buildFragment(dom) {
-        var el0 = dom.createDocumentFragment();
-        var el1 = dom.createElement("ul");
-        dom.setAttribute(el1, "class", "ember-power-select-multiple-options");
-        var el2 = dom.createTextNode("\n");
-        dom.appendChild(el1, el2);
-        var el2 = dom.createComment("");
-        dom.appendChild(el1, el2);
-        var el2 = dom.createComment("");
-        dom.appendChild(el1, el2);
-        dom.appendChild(el0, el1);
-        var el1 = dom.createTextNode("\n");
-        dom.appendChild(el0, el1);
-        var el1 = dom.createElement("span");
-        dom.setAttribute(el1, "class", "ember-power-select-status-icon");
-        dom.appendChild(el0, el1);
-        return el0;
-      },
-      buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-        var element3 = dom.childAt(fragment, [0]);
-        var morphs = new Array(3);
-        morphs[0] = dom.createAttrMorph(element3, 'id');
-        morphs[1] = dom.createMorphAt(element3, 1, 1);
-        morphs[2] = dom.createMorphAt(element3, 2, 2);
-        return morphs;
-      },
-      statements: [["attribute", "id", ["concat", [["get", "elementId", ["loc", [null, [1, 10], [1, 19]]]], "-ember-power-select-multiple-options"]]], ["block", "each", [["get", "selected", ["loc", [null, [2, 10], [2, 18]]]]], [], 0, null, ["loc", [null, [2, 2], [16, 11]]]], ["block", "if", [["get", "searchEnabled", ["loc", [null, [17, 8], [17, 21]]]]], [], 1, null, ["loc", [null, [17, 2], [26, 9]]]]],
-      locals: [],
-      templates: [child0, child1]
-    };
-  })());
-});
-define("ember-power-select/templates/components/power-select-multiple", ["exports"], function (exports) {
-  "use strict";
-
-  exports["default"] = Ember.HTMLBars.template((function () {
-    var child0 = (function () {
-      var child0 = (function () {
-        return {
-          meta: {
-            "fragmentReason": false,
-            "revision": "Ember@2.5.1",
-            "loc": {
-              "source": null,
-              "start": {
-                "line": 2,
-                "column": 2
-              },
-              "end": {
-                "line": 48,
-                "column": 4
-              }
-            },
-            "moduleName": "modules/ember-power-select/templates/components/power-select-multiple.hbs"
-          },
-          isEmpty: false,
-          arity: 2,
-          cachedFragment: null,
-          hasRendered: false,
-          buildFragment: function buildFragment(dom) {
-            var el0 = dom.createDocumentFragment();
-            var el1 = dom.createTextNode("      ");
-            dom.appendChild(el0, el1);
-            var el1 = dom.createComment("");
-            dom.appendChild(el0, el1);
-            var el1 = dom.createTextNode("\n");
-            dom.appendChild(el0, el1);
-            return el0;
-          },
-          buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-            var morphs = new Array(1);
-            morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
-            return morphs;
-          },
-          statements: [["inline", "yield", [["get", "option", ["loc", [null, [47, 14], [47, 20]]]], ["get", "term", ["loc", [null, [47, 21], [47, 25]]]]], [], ["loc", [null, [47, 6], [47, 27]]]]],
-          locals: ["option", "term"],
-          templates: []
-        };
-      })();
-      var child1 = (function () {
-        return {
-          meta: {
-            "fragmentReason": false,
-            "revision": "Ember@2.5.1",
-            "loc": {
-              "source": null,
-              "start": {
-                "line": 48,
-                "column": 4
-              },
-              "end": {
-                "line": 50,
-                "column": 2
-              }
-            },
-            "moduleName": "modules/ember-power-select/templates/components/power-select-multiple.hbs"
-          },
-          isEmpty: false,
-          arity: 0,
-          cachedFragment: null,
-          hasRendered: false,
-          buildFragment: function buildFragment(dom) {
-            var el0 = dom.createDocumentFragment();
-            var el1 = dom.createTextNode("      ");
-            dom.appendChild(el0, el1);
-            var el1 = dom.createComment("");
-            dom.appendChild(el0, el1);
-            var el1 = dom.createTextNode("\n");
-            dom.appendChild(el0, el1);
-            return el0;
-          },
-          buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-            var morphs = new Array(1);
-            morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
-            return morphs;
-          },
-          statements: [["inline", "yield", [], ["to", "inverse"], ["loc", [null, [49, 6], [49, 28]]]]],
-          locals: [],
-          templates: []
-        };
-      })();
-      return {
-        meta: {
-          "fragmentReason": {
-            "name": "missing-wrapper",
-            "problems": ["wrong-type"]
-          },
-          "revision": "Ember@2.5.1",
-          "loc": {
-            "source": null,
-            "start": {
-              "line": 1,
-              "column": 0
-            },
-            "end": {
-              "line": 51,
-              "column": 0
-            }
-          },
-          "moduleName": "modules/ember-power-select/templates/components/power-select-multiple.hbs"
-        },
-        isEmpty: false,
-        arity: 0,
-        cachedFragment: null,
-        hasRendered: false,
-        buildFragment: function buildFragment(dom) {
-          var el0 = dom.createDocumentFragment();
-          var el1 = dom.createComment("");
-          dom.appendChild(el0, el1);
-          return el0;
-        },
-        buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-          var morphs = new Array(1);
-          morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
-          dom.insertBoundary(fragment, 0);
-          dom.insertBoundary(fragment, null);
-          return morphs;
-        },
-        statements: [["block", "power-select", [], ["afterOptionsComponent", ["subexpr", "@mut", [["get", "afterOptionsComponent", ["loc", [null, [3, 28], [3, 49]]]]], [], []], "allowClear", ["subexpr", "@mut", [["get", "allowClear", ["loc", [null, [4, 17], [4, 27]]]]], [], []], "ariaDescribedBy", ["subexpr", "@mut", [["get", "ariaDescribedBy", ["loc", [null, [5, 22], [5, 37]]]]], [], []], "ariaInvalid", ["subexpr", "@mut", [["get", "ariaInvalid", ["loc", [null, [6, 18], [6, 29]]]]], [], []], "ariaLabel", ["subexpr", "@mut", [["get", "ariaLabel", ["loc", [null, [7, 16], [7, 25]]]]], [], []], "ariaLabelledBy", ["subexpr", "@mut", [["get", "ariaLabelledBy", ["loc", [null, [8, 21], [8, 35]]]]], [], []], "beforeOptionsComponent", ["subexpr", "@mut", [["get", "beforeOptionsComponent", ["loc", [null, [9, 29], [9, 51]]]]], [], []], "buildSelection", ["subexpr", "action", ["buildSelection"], [], ["loc", [null, [10, 21], [10, 46]]]], "class", ["subexpr", "@mut", [["get", "class", ["loc", [null, [11, 12], [11, 17]]]]], [], []], "closeOnSelect", ["subexpr", "@mut", [["get", "closeOnSelect", ["loc", [null, [12, 20], [12, 33]]]]], [], []], "destination", ["subexpr", "@mut", [["get", "destination", ["loc", [null, [13, 18], [13, 29]]]]], [], []], "dir", ["subexpr", "@mut", [["get", "dir", ["loc", [null, [14, 10], [14, 13]]]]], [], []], "disabled", ["subexpr", "@mut", [["get", "disabled", ["loc", [null, [15, 15], [15, 23]]]]], [], []], "dropdownClass", ["subexpr", "@mut", [["get", "dropdownClass", ["loc", [null, [16, 20], [16, 33]]]]], [], []], "extra", ["subexpr", "@mut", [["get", "extra", ["loc", [null, [17, 12], [17, 17]]]]], [], []], "horizontalPosition", ["subexpr", "@mut", [["get", "horizontalPosition", ["loc", [null, [18, 25], [18, 43]]]]], [], []], "initiallyOpened", ["subexpr", "@mut", [["get", "initiallyOpened", ["loc", [null, [19, 22], [19, 37]]]]], [], []], "loadingMessage", ["subexpr", "@mut", [["get", "loadingMessage", ["loc", [null, [20, 21], [20, 35]]]]], [], []], "matcher", ["subexpr", "@mut", [["get", "matcher", ["loc", [null, [21, 14], [21, 21]]]]], [], []], "matchTriggerWidth", ["subexpr", "@mut", [["get", "matchTriggerWidth", ["loc", [null, [22, 24], [22, 41]]]]], [], []], "noMatchesMessage", ["subexpr", "@mut", [["get", "noMatchesMessage", ["loc", [null, [23, 23], [23, 39]]]]], [], []], "onchange", ["subexpr", "@mut", [["get", "onchange", ["loc", [null, [24, 15], [24, 23]]]]], [], []], "onclose", ["subexpr", "@mut", [["get", "onclose", ["loc", [null, [25, 14], [25, 21]]]]], [], []], "onfocus", ["subexpr", "action", ["handleFocus"], [], ["loc", [null, [26, 14], [26, 36]]]], "oninput", ["subexpr", "@mut", [["get", "oninput", ["loc", [null, [27, 14], [27, 21]]]]], [], []], "onkeydown", ["subexpr", "action", ["handleKeydown"], [], ["loc", [null, [28, 16], [28, 40]]]], "onopen", ["subexpr", "action", ["handleOpen"], [], ["loc", [null, [29, 13], [29, 34]]]], "options", ["subexpr", "@mut", [["get", "options", ["loc", [null, [30, 14], [30, 21]]]]], [], []], "optionsComponent", ["subexpr", "@mut", [["get", "optionsComponent", ["loc", [null, [31, 23], [31, 39]]]]], [], []], "placeholder", ["subexpr", "@mut", [["get", "placeholder", ["loc", [null, [32, 18], [32, 29]]]]], [], []], "renderInPlace", ["subexpr", "@mut", [["get", "renderInPlace", ["loc", [null, [33, 20], [33, 33]]]]], [], []], "required", ["subexpr", "@mut", [["get", "required", ["loc", [null, [34, 15], [34, 23]]]]], [], []], "search", ["subexpr", "@mut", [["get", "search", ["loc", [null, [35, 13], [35, 19]]]]], [], []], "searchEnabled", ["subexpr", "@mut", [["get", "searchEnabled", ["loc", [null, [36, 20], [36, 33]]]]], [], []], "searchField", ["subexpr", "@mut", [["get", "searchField", ["loc", [null, [37, 18], [37, 29]]]]], [], []], "searchMessage", ["subexpr", "@mut", [["get", "searchMessage", ["loc", [null, [38, 20], [38, 33]]]]], [], []], "searchPlaceholder", ["subexpr", "@mut", [["get", "searchPlaceholder", ["loc", [null, [39, 24], [39, 41]]]]], [], []], "selected", ["subexpr", "@mut", [["get", "selected", ["loc", [null, [40, 15], [40, 23]]]]], [], []], "selectedItemComponent", ["subexpr", "@mut", [["get", "selectedItemComponent", ["loc", [null, [41, 28], [41, 49]]]]], [], []], "tabindex", ["subexpr", "@mut", [["get", "tabindex", ["loc", [null, [42, 15], [42, 23]]]]], [], []], "triggerClass", ["subexpr", "@mut", [["get", "concatenatedTriggerClass", ["loc", [null, [43, 19], [43, 43]]]]], [], []], "triggerComponent", ["subexpr", "@mut", [["get", "triggerComponent", ["loc", [null, [44, 23], [44, 39]]]]], [], []], "verticalPosition", ["subexpr", "@mut", [["get", "verticalPosition", ["loc", [null, [45, 23], [45, 39]]]]], [], []]], 0, 1, ["loc", [null, [2, 2], [50, 19]]]]],
-        locals: [],
-        templates: [child0, child1]
-      };
-    })();
-    var child1 = (function () {
-      var child0 = (function () {
-        return {
-          meta: {
-            "fragmentReason": false,
-            "revision": "Ember@2.5.1",
-            "loc": {
-              "source": null,
-              "start": {
-                "line": 52,
-                "column": 2
-              },
-              "end": {
-                "line": 98,
-                "column": 2
-              }
-            },
-            "moduleName": "modules/ember-power-select/templates/components/power-select-multiple.hbs"
-          },
-          isEmpty: false,
-          arity: 2,
-          cachedFragment: null,
-          hasRendered: false,
-          buildFragment: function buildFragment(dom) {
-            var el0 = dom.createDocumentFragment();
-            var el1 = dom.createTextNode("      ");
-            dom.appendChild(el0, el1);
-            var el1 = dom.createComment("");
-            dom.appendChild(el0, el1);
-            var el1 = dom.createTextNode("\n");
-            dom.appendChild(el0, el1);
-            return el0;
-          },
-          buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-            var morphs = new Array(1);
-            morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
-            return morphs;
-          },
-          statements: [["inline", "yield", [["get", "option", ["loc", [null, [97, 14], [97, 20]]]], ["get", "term", ["loc", [null, [97, 21], [97, 25]]]]], [], ["loc", [null, [97, 6], [97, 27]]]]],
-          locals: ["option", "term"],
-          templates: []
-        };
-      })();
-      return {
-        meta: {
-          "fragmentReason": false,
-          "revision": "Ember@2.5.1",
-          "loc": {
-            "source": null,
-            "start": {
-              "line": 51,
-              "column": 0
-            },
-            "end": {
-              "line": 99,
-              "column": 0
-            }
-          },
-          "moduleName": "modules/ember-power-select/templates/components/power-select-multiple.hbs"
-        },
-        isEmpty: false,
-        arity: 0,
-        cachedFragment: null,
-        hasRendered: false,
-        buildFragment: function buildFragment(dom) {
-          var el0 = dom.createDocumentFragment();
-          var el1 = dom.createComment("");
-          dom.appendChild(el0, el1);
-          return el0;
-        },
-        buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-          var morphs = new Array(1);
-          morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
-          dom.insertBoundary(fragment, 0);
-          dom.insertBoundary(fragment, null);
-          return morphs;
-        },
-        statements: [["block", "power-select", [], ["afterOptionsComponent", ["subexpr", "@mut", [["get", "afterOptionsComponent", ["loc", [null, [53, 28], [53, 49]]]]], [], []], "allowClear", ["subexpr", "@mut", [["get", "allowClear", ["loc", [null, [54, 17], [54, 27]]]]], [], []], "ariaDescribedBy", ["subexpr", "@mut", [["get", "ariaDescribedBy", ["loc", [null, [55, 22], [55, 37]]]]], [], []], "ariaInvalid", ["subexpr", "@mut", [["get", "ariaInvalid", ["loc", [null, [56, 18], [56, 29]]]]], [], []], "ariaLabel", ["subexpr", "@mut", [["get", "ariaLabel", ["loc", [null, [57, 16], [57, 25]]]]], [], []], "ariaLabelledBy", ["subexpr", "@mut", [["get", "ariaLabelledBy", ["loc", [null, [58, 21], [58, 35]]]]], [], []], "beforeOptionsComponent", ["subexpr", "@mut", [["get", "beforeOptionsComponent", ["loc", [null, [59, 29], [59, 51]]]]], [], []], "buildSelection", ["subexpr", "action", ["buildSelection"], [], ["loc", [null, [60, 21], [60, 46]]]], "class", ["subexpr", "@mut", [["get", "class", ["loc", [null, [61, 12], [61, 17]]]]], [], []], "closeOnSelect", ["subexpr", "@mut", [["get", "closeOnSelect", ["loc", [null, [62, 20], [62, 33]]]]], [], []], "destination", ["subexpr", "@mut", [["get", "destination", ["loc", [null, [63, 18], [63, 29]]]]], [], []], "dir", ["subexpr", "@mut", [["get", "dir", ["loc", [null, [64, 10], [64, 13]]]]], [], []], "disabled", ["subexpr", "@mut", [["get", "disabled", ["loc", [null, [65, 15], [65, 23]]]]], [], []], "dropdownClass", ["subexpr", "@mut", [["get", "dropdownClass", ["loc", [null, [66, 20], [66, 33]]]]], [], []], "extra", ["subexpr", "@mut", [["get", "extra", ["loc", [null, [67, 12], [67, 17]]]]], [], []], "horizontalPosition", ["subexpr", "@mut", [["get", "horizontalPosition", ["loc", [null, [68, 25], [68, 43]]]]], [], []], "initiallyOpened", ["subexpr", "@mut", [["get", "initiallyOpened", ["loc", [null, [69, 22], [69, 37]]]]], [], []], "loadingMessage", ["subexpr", "@mut", [["get", "loadingMessage", ["loc", [null, [70, 21], [70, 35]]]]], [], []], "matcher", ["subexpr", "@mut", [["get", "matcher", ["loc", [null, [71, 14], [71, 21]]]]], [], []], "matchTriggerWidth", ["subexpr", "@mut", [["get", "matchTriggerWidth", ["loc", [null, [72, 24], [72, 41]]]]], [], []], "noMatchesMessage", ["subexpr", "@mut", [["get", "noMatchesMessage", ["loc", [null, [73, 23], [73, 39]]]]], [], []], "onchange", ["subexpr", "@mut", [["get", "onchange", ["loc", [null, [74, 15], [74, 23]]]]], [], []], "onclose", ["subexpr", "@mut", [["get", "onclose", ["loc", [null, [75, 14], [75, 21]]]]], [], []], "onfocus", ["subexpr", "action", ["handleFocus"], [], ["loc", [null, [76, 14], [76, 36]]]], "oninput", ["subexpr", "@mut", [["get", "oninput", ["loc", [null, [77, 14], [77, 21]]]]], [], []], "onkeydown", ["subexpr", "action", ["handleKeydown"], [], ["loc", [null, [78, 16], [78, 40]]]], "onopen", ["subexpr", "action", ["handleOpen"], [], ["loc", [null, [79, 13], [79, 34]]]], "options", ["subexpr", "@mut", [["get", "options", ["loc", [null, [80, 14], [80, 21]]]]], [], []], "optionsComponent", ["subexpr", "@mut", [["get", "optionsComponent", ["loc", [null, [81, 23], [81, 39]]]]], [], []], "placeholder", ["subexpr", "@mut", [["get", "placeholder", ["loc", [null, [82, 18], [82, 29]]]]], [], []], "renderInPlace", ["subexpr", "@mut", [["get", "renderInPlace", ["loc", [null, [83, 20], [83, 33]]]]], [], []], "required", ["subexpr", "@mut", [["get", "required", ["loc", [null, [84, 15], [84, 23]]]]], [], []], "search", ["subexpr", "@mut", [["get", "search", ["loc", [null, [85, 13], [85, 19]]]]], [], []], "searchEnabled", ["subexpr", "@mut", [["get", "searchEnabled", ["loc", [null, [86, 20], [86, 33]]]]], [], []], "searchField", ["subexpr", "@mut", [["get", "searchField", ["loc", [null, [87, 18], [87, 29]]]]], [], []], "searchMessage", ["subexpr", "@mut", [["get", "searchMessage", ["loc", [null, [88, 20], [88, 33]]]]], [], []], "searchPlaceholder", ["subexpr", "@mut", [["get", "searchPlaceholder", ["loc", [null, [89, 24], [89, 41]]]]], [], []], "selected", ["subexpr", "@mut", [["get", "selected", ["loc", [null, [90, 15], [90, 23]]]]], [], []], "selectedItemComponent", ["subexpr", "@mut", [["get", "selectedItemComponent", ["loc", [null, [91, 28], [91, 49]]]]], [], []], "tabindex", ["subexpr", "@mut", [["get", "tabindex", ["loc", [null, [92, 15], [92, 23]]]]], [], []], "triggerClass", ["subexpr", "@mut", [["get", "concatenatedTriggerClass", ["loc", [null, [93, 19], [93, 43]]]]], [], []], "triggerComponent", ["subexpr", "@mut", [["get", "triggerComponent", ["loc", [null, [94, 23], [94, 39]]]]], [], []], "verticalPosition", ["subexpr", "@mut", [["get", "verticalPosition", ["loc", [null, [95, 23], [95, 39]]]]], [], []]], 0, null, ["loc", [null, [52, 2], [98, 19]]]]],
-        locals: [],
-        templates: [child0]
-      };
-    })();
-    return {
-      meta: {
-        "fragmentReason": {
-          "name": "missing-wrapper",
-          "problems": ["wrong-type"]
-        },
-        "revision": "Ember@2.5.1",
-        "loc": {
-          "source": null,
-          "start": {
-            "line": 1,
-            "column": 0
-          },
-          "end": {
-            "line": 100,
-            "column": 0
-          }
-        },
-        "moduleName": "modules/ember-power-select/templates/components/power-select-multiple.hbs"
-      },
-      isEmpty: false,
-      arity: 0,
-      cachedFragment: null,
-      hasRendered: false,
-      buildFragment: function buildFragment(dom) {
-        var el0 = dom.createDocumentFragment();
-        var el1 = dom.createComment("");
-        dom.appendChild(el0, el1);
-        return el0;
-      },
-      buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-        var morphs = new Array(1);
-        morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
-        dom.insertBoundary(fragment, 0);
-        dom.insertBoundary(fragment, null);
-        return morphs;
-      },
-      statements: [["block", "if", [["subexpr", "hasBlock", ["inverse"], [], ["loc", [null, [1, 6], [1, 26]]]]], [], 0, 1, ["loc", [null, [1, 0], [99, 7]]]]],
-      locals: [],
-      templates: [child0, child1]
-    };
-  })());
-});
-define("ember-power-select/templates/components/power-select", ["exports"], function (exports) {
-  "use strict";
-
-  exports["default"] = Ember.HTMLBars.template((function () {
-    var child0 = (function () {
-      var child0 = (function () {
-        return {
-          meta: {
-            "fragmentReason": false,
-            "revision": "Ember@2.5.1",
-            "loc": {
-              "source": null,
-              "start": {
-                "line": 37,
-                "column": 2
-              },
-              "end": {
-                "line": 39,
-                "column": 2
-              }
-            },
-            "moduleName": "modules/ember-power-select/templates/components/power-select.hbs"
-          },
-          isEmpty: false,
-          arity: 0,
-          cachedFragment: null,
-          hasRendered: false,
-          buildFragment: function buildFragment(dom) {
-            var el0 = dom.createDocumentFragment();
-            var el1 = dom.createTextNode("    ");
-            dom.appendChild(el0, el1);
-            var el1 = dom.createElement("ul");
-            dom.setAttribute(el1, "class", "ember-power-select-options");
-            dom.setAttribute(el1, "role", "listbox");
-            var el2 = dom.createElement("li");
-            dom.setAttribute(el2, "class", "ember-power-select-option ember-power-select-option--search-message");
-            dom.setAttribute(el2, "role", "option");
-            var el3 = dom.createComment("");
-            dom.appendChild(el2, el3);
-            dom.appendChild(el1, el2);
-            dom.appendChild(el0, el1);
-            var el1 = dom.createTextNode("\n");
-            dom.appendChild(el0, el1);
-            return el0;
-          },
-          buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-            var morphs = new Array(1);
-            morphs[0] = dom.createMorphAt(dom.childAt(fragment, [1, 0]), 0, 0);
-            return morphs;
-          },
-          statements: [["content", "searchMessage", ["loc", [null, [38, 152], [38, 169]]]]],
-          locals: [],
-          templates: []
-        };
-      })();
-      var child1 = (function () {
-        var child0 = (function () {
-          var child0 = (function () {
-            return {
-              meta: {
-                "fragmentReason": false,
-                "revision": "Ember@2.5.1",
-                "loc": {
-                  "source": null,
-                  "start": {
-                    "line": 40,
-                    "column": 4
-                  },
-                  "end": {
-                    "line": 42,
-                    "column": 4
-                  }
-                },
-                "moduleName": "modules/ember-power-select/templates/components/power-select.hbs"
-              },
-              isEmpty: false,
-              arity: 0,
-              cachedFragment: null,
-              hasRendered: false,
-              buildFragment: function buildFragment(dom) {
-                var el0 = dom.createDocumentFragment();
-                var el1 = dom.createTextNode("      ");
-                dom.appendChild(el0, el1);
-                var el1 = dom.createComment("");
-                dom.appendChild(el0, el1);
-                var el1 = dom.createTextNode("\n");
-                dom.appendChild(el0, el1);
-                return el0;
-              },
-              buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-                var morphs = new Array(1);
-                morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
-                return morphs;
-              },
-              statements: [["inline", "yield", [], ["to", "inverse"], ["loc", [null, [41, 6], [41, 28]]]]],
-              locals: [],
-              templates: []
-            };
-          })();
-          var child1 = (function () {
-            var child0 = (function () {
-              return {
-                meta: {
-                  "fragmentReason": false,
-                  "revision": "Ember@2.5.1",
-                  "loc": {
-                    "source": null,
-                    "start": {
-                      "line": 42,
-                      "column": 4
-                    },
-                    "end": {
-                      "line": 44,
-                      "column": 4
-                    }
-                  },
-                  "moduleName": "modules/ember-power-select/templates/components/power-select.hbs"
-                },
-                isEmpty: false,
-                arity: 0,
-                cachedFragment: null,
-                hasRendered: false,
-                buildFragment: function buildFragment(dom) {
-                  var el0 = dom.createDocumentFragment();
-                  var el1 = dom.createTextNode("      ");
-                  dom.appendChild(el0, el1);
-                  var el1 = dom.createElement("ul");
-                  dom.setAttribute(el1, "class", "ember-power-select-options");
-                  dom.setAttribute(el1, "role", "listbox");
-                  var el2 = dom.createElement("li");
-                  dom.setAttribute(el2, "class", "ember-power-select-option ember-power-select-option--no-matches-message");
-                  dom.setAttribute(el2, "role", "option");
-                  var el3 = dom.createComment("");
-                  dom.appendChild(el2, el3);
-                  dom.appendChild(el1, el2);
-                  dom.appendChild(el0, el1);
-                  var el1 = dom.createTextNode("\n    ");
-                  dom.appendChild(el0, el1);
-                  return el0;
-                },
-                buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-                  var morphs = new Array(1);
-                  morphs[0] = dom.createMorphAt(dom.childAt(fragment, [1, 0]), 0, 0);
-                  return morphs;
-                },
-                statements: [["content", "noMatchesMessage", ["loc", [null, [43, 158], [43, 178]]]]],
-                locals: [],
-                templates: []
-              };
-            })();
-            return {
-              meta: {
-                "fragmentReason": false,
-                "revision": "Ember@2.5.1",
-                "loc": {
-                  "source": null,
-                  "start": {
-                    "line": 42,
-                    "column": 4
-                  },
-                  "end": {
-                    "line": 44,
-                    "column": 4
-                  }
-                },
-                "moduleName": "modules/ember-power-select/templates/components/power-select.hbs"
-              },
-              isEmpty: false,
-              arity: 0,
-              cachedFragment: null,
-              hasRendered: false,
-              buildFragment: function buildFragment(dom) {
-                var el0 = dom.createDocumentFragment();
-                var el1 = dom.createComment("");
-                dom.appendChild(el0, el1);
-                return el0;
-              },
-              buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-                var morphs = new Array(1);
-                morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
-                dom.insertBoundary(fragment, 0);
-                dom.insertBoundary(fragment, null);
-                return morphs;
-              },
-              statements: [["block", "if", [["get", "noMatchesMessage", ["loc", [null, [42, 14], [42, 30]]]]], [], 0, null, ["loc", [null, [42, 4], [44, 4]]]]],
-              locals: [],
-              templates: [child0]
-            };
-          })();
-          return {
-            meta: {
-              "fragmentReason": false,
-              "revision": "Ember@2.5.1",
-              "loc": {
-                "source": null,
-                "start": {
-                  "line": 39,
-                  "column": 2
-                },
-                "end": {
-                  "line": 45,
-                  "column": 2
-                }
-              },
-              "moduleName": "modules/ember-power-select/templates/components/power-select.hbs"
-            },
-            isEmpty: false,
-            arity: 0,
-            cachedFragment: null,
-            hasRendered: false,
-            buildFragment: function buildFragment(dom) {
-              var el0 = dom.createDocumentFragment();
-              var el1 = dom.createComment("");
-              dom.appendChild(el0, el1);
-              return el0;
-            },
-            buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-              var morphs = new Array(1);
-              morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
-              dom.insertBoundary(fragment, 0);
-              dom.insertBoundary(fragment, null);
-              return morphs;
-            },
-            statements: [["block", "if", [["subexpr", "hasBlock", ["inverse"], [], ["loc", [null, [40, 10], [40, 30]]]]], [], 0, 1, ["loc", [null, [40, 4], [44, 11]]]]],
-            locals: [],
-            templates: [child0, child1]
-          };
-        })();
-        var child1 = (function () {
-          var child0 = (function () {
-            return {
-              meta: {
-                "fragmentReason": false,
-                "revision": "Ember@2.5.1",
-                "loc": {
-                  "source": null,
-                  "start": {
-                    "line": 46,
-                    "column": 4
-                  },
-                  "end": {
-                    "line": 64,
-                    "column": 4
-                  }
-                },
-                "moduleName": "modules/ember-power-select/templates/components/power-select.hbs"
-              },
-              isEmpty: false,
-              arity: 2,
-              cachedFragment: null,
-              hasRendered: false,
-              buildFragment: function buildFragment(dom) {
-                var el0 = dom.createDocumentFragment();
-                var el1 = dom.createTextNode("      ");
-                dom.appendChild(el0, el1);
-                var el1 = dom.createComment("");
-                dom.appendChild(el0, el1);
-                var el1 = dom.createTextNode("\n");
-                dom.appendChild(el0, el1);
-                return el0;
-              },
-              buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-                var morphs = new Array(1);
-                morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
-                return morphs;
-              },
-              statements: [["inline", "yield", [["get", "option", ["loc", [null, [63, 14], [63, 20]]]], ["get", "term", ["loc", [null, [63, 21], [63, 25]]]]], [], ["loc", [null, [63, 6], [63, 27]]]]],
-              locals: ["option", "term"],
-              templates: []
-            };
-          })();
-          return {
-            meta: {
-              "fragmentReason": false,
-              "revision": "Ember@2.5.1",
-              "loc": {
-                "source": null,
-                "start": {
-                  "line": 45,
-                  "column": 2
-                },
-                "end": {
-                  "line": 65,
-                  "column": 2
-                }
-              },
-              "moduleName": "modules/ember-power-select/templates/components/power-select.hbs"
-            },
-            isEmpty: false,
-            arity: 0,
-            cachedFragment: null,
-            hasRendered: false,
-            buildFragment: function buildFragment(dom) {
-              var el0 = dom.createDocumentFragment();
-              var el1 = dom.createComment("");
-              dom.appendChild(el0, el1);
-              var el1 = dom.createTextNode("  ");
-              dom.appendChild(el0, el1);
-              return el0;
-            },
-            buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-              var morphs = new Array(1);
-              morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
-              dom.insertBoundary(fragment, 0);
-              return morphs;
-            },
-            statements: [["block", "component", [["get", "optionsComponent", ["loc", [null, [46, 17], [46, 33]]]]], ["allOptions", ["subexpr", "readonly", [["get", "results", ["loc", [null, [47, 27], [47, 34]]]]], [], ["loc", [null, [47, 17], [47, 35]]]], "aria-controls", ["subexpr", "readonly", [["get", "triggerId", ["loc", [null, [48, 30], [48, 39]]]]], [], ["loc", [null, [48, 20], [48, 40]]]], "class", "ember-power-select-options", "extra", ["subexpr", "readonly", [["get", "extra", ["loc", [null, [50, 22], [50, 27]]]]], [], ["loc", [null, [50, 12], [50, 28]]]], "groupIndex", "", "highlighted", ["subexpr", "readonly", [["get", "highlighted", ["loc", [null, [52, 28], [52, 39]]]]], [], ["loc", [null, [52, 18], [52, 40]]]], "id", ["subexpr", "readonly", [["get", "optionsId", ["loc", [null, [53, 19], [53, 28]]]]], [], ["loc", [null, [53, 9], [53, 29]]]], "lastSearchedText", ["subexpr", "readonly", [["get", "lastSearchedText", ["loc", [null, [54, 33], [54, 49]]]]], [], ["loc", [null, [54, 23], [54, 50]]]], "loading", ["subexpr", "readonly", [["get", "loading", ["loc", [null, [55, 24], [55, 31]]]]], [], ["loc", [null, [55, 14], [55, 32]]]], "loadingMessage", ["subexpr", "readonly", [["get", "loadingMessage", ["loc", [null, [56, 31], [56, 45]]]]], [], ["loc", [null, [56, 21], [56, 46]]]], "options", ["subexpr", "readonly", [["get", "results", ["loc", [null, [57, 24], [57, 31]]]]], [], ["loc", [null, [57, 14], [57, 32]]]], "optionsComponent", ["subexpr", "readonly", [["get", "optionsComponent", ["loc", [null, [58, 33], [58, 49]]]]], [], ["loc", [null, [58, 23], [58, 50]]]], "searchText", ["subexpr", "readonly", [["get", "searchText", ["loc", [null, [59, 27], [59, 37]]]]], [], ["loc", [null, [59, 17], [59, 38]]]], "select", ["subexpr", "readonly", [["get", "publicAPI", ["loc", [null, [60, 23], [60, 32]]]]], [], ["loc", [null, [60, 13], [60, 33]]]], "selected", ["subexpr", "readonly", [["get", "resolvedSelected", ["loc", [null, [61, 25], [61, 41]]]]], [], ["loc", [null, [61, 15], [61, 42]]]]], 0, null, ["loc", [null, [46, 4], [64, 18]]]]],
-            locals: [],
-            templates: [child0]
-          };
-        })();
-        return {
-          meta: {
-            "fragmentReason": false,
-            "revision": "Ember@2.5.1",
-            "loc": {
-              "source": null,
-              "start": {
-                "line": 39,
-                "column": 2
-              },
-              "end": {
-                "line": 65,
-                "column": 2
-              }
-            },
-            "moduleName": "modules/ember-power-select/templates/components/power-select.hbs"
-          },
-          isEmpty: false,
-          arity: 0,
-          cachedFragment: null,
-          hasRendered: false,
-          buildFragment: function buildFragment(dom) {
-            var el0 = dom.createDocumentFragment();
-            var el1 = dom.createComment("");
-            dom.appendChild(el0, el1);
-            return el0;
-          },
-          buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-            var morphs = new Array(1);
-            morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
-            dom.insertBoundary(fragment, 0);
-            dom.insertBoundary(fragment, null);
-            return morphs;
-          },
-          statements: [["block", "if", [["get", "mustShowNoMessages", ["loc", [null, [39, 12], [39, 30]]]]], [], 0, 1, ["loc", [null, [39, 2], [65, 2]]]]],
-          locals: [],
-          templates: [child0, child1]
-        };
-      })();
-      return {
-        meta: {
-          "fragmentReason": {
-            "name": "missing-wrapper",
-            "problems": ["wrong-type", "multiple-nodes"]
-          },
-          "revision": "Ember@2.5.1",
-          "loc": {
-            "source": null,
-            "start": {
-              "line": 1,
-              "column": 0
-            },
-            "end": {
-              "line": 71,
-              "column": 0
-            }
-          },
-          "moduleName": "modules/ember-power-select/templates/components/power-select.hbs"
-        },
-        isEmpty: false,
-        arity: 1,
-        cachedFragment: null,
-        hasRendered: false,
-        buildFragment: function buildFragment(dom) {
-          var el0 = dom.createDocumentFragment();
-          var el1 = dom.createTextNode("  ");
-          dom.appendChild(el0, el1);
-          var el1 = dom.createComment("");
-          dom.appendChild(el0, el1);
-          var el1 = dom.createTextNode("\n");
-          dom.appendChild(el0, el1);
-          var el1 = dom.createComment("");
-          dom.appendChild(el0, el1);
-          var el1 = dom.createTextNode("  ");
-          dom.appendChild(el0, el1);
-          var el1 = dom.createComment("");
-          dom.appendChild(el0, el1);
-          var el1 = dom.createTextNode("\n");
-          dom.appendChild(el0, el1);
-          return el0;
-        },
-        buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-          var morphs = new Array(3);
-          morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
-          morphs[1] = dom.createMorphAt(fragment, 3, 3, contextualElement);
-          morphs[2] = dom.createMorphAt(fragment, 5, 5, contextualElement);
-          return morphs;
-        },
-        statements: [["inline", "component", [["get", "beforeOptionsComponent", ["loc", [null, [26, 14], [26, 36]]]]], ["searchText", ["subexpr", "readonly", [["get", "searchText", ["loc", [null, [27, 25], [27, 35]]]]], [], ["loc", [null, [27, 15], [27, 36]]]], "onkeydown", ["subexpr", "readonly", [["get", "onkeydown", ["loc", [null, [28, 24], [28, 33]]]]], [], ["loc", [null, [28, 14], [28, 34]]]], "select", ["subexpr", "readonly", [["get", "publicAPI", ["loc", [null, [29, 21], [29, 30]]]]], [], ["loc", [null, [29, 11], [29, 31]]]], "handleInput", ["subexpr", "action", ["handleInput"], [], ["loc", [null, [30, 16], [30, 38]]]], "searchPlaceholder", ["subexpr", "readonly", [["get", "searchPlaceholder", ["loc", [null, [31, 32], [31, 49]]]]], [], ["loc", [null, [31, 22], [31, 50]]]], "searchEnabled", ["subexpr", "readonly", [["get", "searchEnabled", ["loc", [null, [32, 28], [32, 41]]]]], [], ["loc", [null, [32, 18], [32, 42]]]], "highlighted", ["subexpr", "readonly", [["get", "highlighted", ["loc", [null, [33, 26], [33, 37]]]]], [], ["loc", [null, [33, 16], [33, 38]]]], "listboxId", ["subexpr", "readonly", [["get", "optionsId", ["loc", [null, [34, 24], [34, 33]]]]], [], ["loc", [null, [34, 14], [34, 34]]]], "extra", ["subexpr", "readonly", [["get", "extra", ["loc", [null, [35, 20], [35, 25]]]]], [], ["loc", [null, [35, 10], [35, 26]]]], "eventSender", ["subexpr", "@mut", [["get", "eventSender", ["loc", [null, [36, 16], [36, 27]]]]], [], []]], ["loc", [null, [26, 2], [36, 29]]]], ["block", "if", [["get", "mustShowSearchMessage", ["loc", [null, [37, 8], [37, 29]]]]], [], 0, 1, ["loc", [null, [37, 2], [65, 9]]]], ["inline", "component", [["get", "afterOptionsComponent", ["loc", [null, [66, 14], [66, 35]]]]], ["select", ["subexpr", "readonly", [["get", "publicAPI", ["loc", [null, [67, 21], [67, 30]]]]], [], ["loc", [null, [67, 11], [67, 31]]]], "searchPlaceholder", ["subexpr", "readonly", [["get", "searchPlaceholder", ["loc", [null, [68, 32], [68, 49]]]]], [], ["loc", [null, [68, 22], [68, 50]]]], "searchEnabled", ["subexpr", "readonly", [["get", "searchEnabled", ["loc", [null, [69, 28], [69, 41]]]]], [], ["loc", [null, [69, 18], [69, 42]]]], "extra", ["subexpr", "readonly", [["get", "extra", ["loc", [null, [70, 20], [70, 25]]]]], [], ["loc", [null, [70, 10], [70, 26]]]]], ["loc", [null, [66, 2], [70, 28]]]]],
-        locals: ["dropdown"],
-        templates: [child0, child1]
-      };
-    })();
-    var child1 = (function () {
-      var child0 = (function () {
-        return {
-          meta: {
-            "fragmentReason": false,
-            "revision": "Ember@2.5.1",
-            "loc": {
-              "source": null,
-              "start": {
-                "line": 72,
-                "column": 2
-              },
-              "end": {
-                "line": 93,
-                "column": 2
-              }
-            },
-            "moduleName": "modules/ember-power-select/templates/components/power-select.hbs"
-          },
-          isEmpty: false,
-          arity: 2,
-          cachedFragment: null,
-          hasRendered: false,
-          buildFragment: function buildFragment(dom) {
-            var el0 = dom.createDocumentFragment();
-            var el1 = dom.createTextNode("    ");
-            dom.appendChild(el0, el1);
-            var el1 = dom.createComment("");
-            dom.appendChild(el0, el1);
-            var el1 = dom.createTextNode("\n");
-            dom.appendChild(el0, el1);
-            return el0;
-          },
-          buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-            var morphs = new Array(1);
-            morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
-            return morphs;
-          },
-          statements: [["inline", "yield", [["get", "opt", ["loc", [null, [92, 12], [92, 15]]]], ["get", "term", ["loc", [null, [92, 16], [92, 20]]]]], [], ["loc", [null, [92, 4], [92, 22]]]]],
-          locals: ["opt", "term"],
-          templates: []
-        };
-      })();
-      return {
-        meta: {
-          "fragmentReason": false,
-          "revision": "Ember@2.5.1",
-          "loc": {
-            "source": null,
-            "start": {
-              "line": 71,
-              "column": 0
-            },
-            "end": {
-              "line": 94,
-              "column": 0
-            }
-          },
-          "moduleName": "modules/ember-power-select/templates/components/power-select.hbs"
-        },
-        isEmpty: false,
-        arity: 0,
-        cachedFragment: null,
-        hasRendered: false,
-        buildFragment: function buildFragment(dom) {
-          var el0 = dom.createDocumentFragment();
-          var el1 = dom.createComment("");
-          dom.appendChild(el0, el1);
-          return el0;
-        },
-        buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-          var morphs = new Array(1);
-          morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
-          dom.insertBoundary(fragment, 0);
-          dom.insertBoundary(fragment, null);
-          return morphs;
-        },
-        statements: [["block", "component", [["get", "triggerComponent", ["loc", [null, [72, 15], [72, 31]]]]], ["allowClear", ["subexpr", "readonly", [["get", "allowClear", ["loc", [null, [73, 25], [73, 35]]]]], [], ["loc", [null, [73, 15], [73, 36]]]], "buildSelection", ["subexpr", "readonly", [["get", "buildSelection", ["loc", [null, [74, 29], [74, 43]]]]], [], ["loc", [null, [74, 19], [74, 44]]]], "disabled", ["subexpr", "readonly", [["get", "disabled", ["loc", [null, [75, 23], [75, 31]]]]], [], ["loc", [null, [75, 13], [75, 32]]]], "extra", ["subexpr", "readonly", [["get", "extra", ["loc", [null, [76, 20], [76, 25]]]]], [], ["loc", [null, [76, 10], [76, 26]]]], "handleInput", ["subexpr", "action", ["handleInput"], [], ["loc", [null, [77, 16], [77, 38]]]], "handleFocus", ["subexpr", "action", ["handleFocus", null], [], ["loc", [null, [78, 16], [78, 43]]]], "lastSearchedText", ["subexpr", "readonly", [["get", "lastSearchedText", ["loc", [null, [79, 31], [79, 47]]]]], [], ["loc", [null, [79, 21], [79, 48]]]], "listboxId", ["subexpr", "readonly", [["get", "optionsId", ["loc", [null, [80, 24], [80, 33]]]]], [], ["loc", [null, [80, 14], [80, 34]]]], "loading", ["subexpr", "readonly", [["get", "loading", ["loc", [null, [81, 22], [81, 29]]]]], [], ["loc", [null, [81, 12], [81, 30]]]], "onkeydown", ["subexpr", "readonly", [["get", "onkeydown", ["loc", [null, [82, 24], [82, 33]]]]], [], ["loc", [null, [82, 14], [82, 34]]]], "options", ["subexpr", "readonly", [["get", "results", ["loc", [null, [83, 22], [83, 29]]]]], [], ["loc", [null, [83, 12], [83, 30]]]], "placeholder", ["subexpr", "readonly", [["get", "placeholder", ["loc", [null, [84, 26], [84, 37]]]]], [], ["loc", [null, [84, 16], [84, 38]]]], "searchEnabled", ["subexpr", "readonly", [["get", "searchEnabled", ["loc", [null, [85, 28], [85, 41]]]]], [], ["loc", [null, [85, 18], [85, 42]]]], "searchField", ["subexpr", "readonly", [["get", "searchField", ["loc", [null, [86, 26], [86, 37]]]]], [], ["loc", [null, [86, 16], [86, 38]]]], "searchText", ["subexpr", "readonly", [["get", "searchText", ["loc", [null, [87, 25], [87, 35]]]]], [], ["loc", [null, [87, 15], [87, 36]]]], "select", ["subexpr", "readonly", [["get", "publicAPI", ["loc", [null, [88, 21], [88, 30]]]]], [], ["loc", [null, [88, 11], [88, 31]]]], "selected", ["subexpr", "readonly", [["get", "resolvedSelected", ["loc", [null, [89, 23], [89, 39]]]]], [], ["loc", [null, [89, 13], [89, 40]]]], "selectedItemComponent", ["subexpr", "readonly", [["get", "selectedItemComponent", ["loc", [null, [90, 36], [90, 57]]]]], [], ["loc", [null, [90, 26], [90, 58]]]]], 0, null, ["loc", [null, [72, 2], [93, 16]]]]],
-        locals: [],
-        templates: [child0]
-      };
-    })();
-    return {
-      meta: {
-        "fragmentReason": {
-          "name": "missing-wrapper",
-          "problems": ["wrong-type"]
-        },
-        "revision": "Ember@2.5.1",
-        "loc": {
-          "source": null,
-          "start": {
-            "line": 1,
-            "column": 0
-          },
-          "end": {
-            "line": 95,
-            "column": 0
-          }
-        },
-        "moduleName": "modules/ember-power-select/templates/components/power-select.hbs"
-      },
-      isEmpty: false,
-      arity: 0,
-      cachedFragment: null,
-      hasRendered: false,
-      buildFragment: function buildFragment(dom) {
-        var el0 = dom.createDocumentFragment();
-        var el1 = dom.createComment("");
-        dom.appendChild(el0, el1);
-        return el0;
-      },
-      buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-        var morphs = new Array(1);
-        morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
-        dom.insertBoundary(fragment, 0);
-        dom.insertBoundary(fragment, null);
-        return morphs;
-      },
-      statements: [["block", "basic-dropdown", [], ["ariaDescribedBy", ["subexpr", "readonly", [["get", "ariaDescribedBy", ["loc", [null, [2, 28], [2, 43]]]]], [], ["loc", [null, [2, 18], [2, 44]]]], "ariaInvalid", ["subexpr", "readonly", [["get", "ariaInvalid", ["loc", [null, [3, 24], [3, 35]]]]], [], ["loc", [null, [3, 14], [3, 36]]]], "ariaLabel", ["subexpr", "readonly", [["get", "ariaLabel", ["loc", [null, [4, 22], [4, 31]]]]], [], ["loc", [null, [4, 12], [4, 32]]]], "ariaLabelledBy", ["subexpr", "readonly", [["get", "ariaLabelledBy", ["loc", [null, [5, 27], [5, 41]]]]], [], ["loc", [null, [5, 17], [5, 42]]]], "ariaRequired", ["subexpr", "readonly", [["get", "required", ["loc", [null, [6, 25], [6, 33]]]]], [], ["loc", [null, [6, 15], [6, 34]]]], "class", ["subexpr", "readonly", [["get", "concatenatedClasses", ["loc", [null, [7, 18], [7, 37]]]]], [], ["loc", [null, [7, 8], [7, 38]]]], "destination", ["subexpr", "readonly", [["get", "destination", ["loc", [null, [8, 24], [8, 35]]]]], [], ["loc", [null, [8, 14], [8, 36]]]], "dir", ["subexpr", "readonly", [["get", "dir", ["loc", [null, [9, 16], [9, 19]]]]], [], ["loc", [null, [9, 6], [9, 20]]]], "disabled", ["subexpr", "readonly", [["get", "disabled", ["loc", [null, [10, 21], [10, 29]]]]], [], ["loc", [null, [10, 11], [10, 30]]]], "dropdownClass", ["subexpr", "readonly", [["get", "concatenatedDropdownClasses", ["loc", [null, [11, 26], [11, 53]]]]], [], ["loc", [null, [11, 16], [11, 54]]]], "horizontalPosition", ["subexpr", "readonly", [["get", "horizontalPosition", ["loc", [null, [12, 31], [12, 49]]]]], [], ["loc", [null, [12, 21], [12, 50]]]], "initiallyOpened", ["subexpr", "@mut", [["get", "initiallyOpened", ["loc", [null, [13, 18], [13, 33]]]]], [], []], "matchTriggerWidth", ["subexpr", "@mut", [["get", "matchTriggerWidth", ["loc", [null, [14, 20], [14, 37]]]]], [], []], "onClose", ["subexpr", "action", ["handleClose"], [], ["loc", [null, [15, 10], [15, 32]]]], "onFocus", ["subexpr", "action", ["handleFocus"], [], ["loc", [null, [16, 10], [16, 32]]]], "onKeydown", ["subexpr", "action", ["handleKeydown"], [], ["loc", [null, [17, 12], [17, 36]]]], "onOpen", ["subexpr", "action", ["handleOpen"], [], ["loc", [null, [18, 9], [18, 30]]]], "registerActionsInParent", ["subexpr", "action", ["registerDropdown"], [], ["loc", [null, [19, 26], [19, 53]]]], "renderInPlace", ["subexpr", "readonly", [["get", "renderInPlace", ["loc", [null, [20, 26], [20, 39]]]]], [], ["loc", [null, [20, 16], [20, 40]]]], "tabindex", ["subexpr", "readonly", [["get", "tabindex", ["loc", [null, [21, 21], [21, 29]]]]], [], ["loc", [null, [21, 11], [21, 30]]]], "triggerClass", ["subexpr", "readonly", [["get", "concatenatedTriggerClasses", ["loc", [null, [22, 25], [22, 51]]]]], [], ["loc", [null, [22, 15], [22, 52]]]], "triggerId", ["subexpr", "@mut", [["get", "triggerId", ["loc", [null, [23, 12], [23, 21]]]]], [], []], "verticalPosition", ["subexpr", "readonly", [["get", "verticalPosition", ["loc", [null, [24, 29], [24, 45]]]]], [], ["loc", [null, [24, 19], [24, 46]]]]], 0, 1, ["loc", [null, [1, 0], [94, 19]]]]],
       locals: [],
       templates: [child0, child1]
     };
@@ -90724,305 +91132,6 @@ define("ember-power-select/utils/update-input-value", ["exports"], function (exp
     }
     input.value = value;
   }
-});
-define('ember-power-select-with-create/components/power-select-with-create', ['exports', 'ember', 'ember-power-select-with-create/templates/components/power-select-with-create', 'ember-power-select/utils/group-utils'], function (exports, _ember, _emberPowerSelectWithCreateTemplatesComponentsPowerSelectWithCreate, _emberPowerSelectUtilsGroupUtils) {
-  'use strict';
-
-  var computed = _ember['default'].computed;
-  var get = _ember['default'].get;
-
-  exports['default'] = _ember['default'].Component.extend({
-    tagName: '',
-    layout: _emberPowerSelectWithCreateTemplatesComponentsPowerSelectWithCreate['default'],
-    matcher: _emberPowerSelectUtilsGroupUtils.defaultMatcher,
-
-    // Lifecycle hooks
-    init: function init() {
-      this._super.apply(this, arguments);
-      _ember['default'].assert('{{power-select-with-create}} requires an `oncreate` function', this.get('oncreate') && typeof this.get('oncreate') === 'function');
-    },
-
-    // CPs
-    optionsArray: computed('options.[]', function () {
-      var options = this.get('options');
-      if (!options) {
-        return _ember['default'].A();
-      }
-      if (options.then) {
-        return options.then(function (value) {
-          return _ember['default'].A(value).toArray();
-        });
-      } else {
-        return _ember['default'].A(options).toArray();
-      }
-    }),
-
-    powerSelectComponentName: computed('multiple', function () {
-      return this.get('multiple') ? 'power-select-multiple' : 'power-select';
-    }),
-
-    shouldShowCreateOption: function shouldShowCreateOption(term) {
-      return this.get('showCreateWhen') ? this.get('showCreateWhen')(term) : true;
-    },
-
-    // Actions
-    actions: {
-      searchAndSuggest: function searchAndSuggest(term) {
-        var _this = this;
-
-        var newOptions = this.get('optionsArray');
-
-        if (term.length === 0) {
-          return newOptions;
-        }
-
-        if (this.get('search')) {
-          return _ember['default'].RSVP.resolve(this.get('search')(term)).then(function (results) {
-            if (results.toArray) {
-              results = results.toArray();
-            }
-
-            if (_this.shouldShowCreateOption(term)) {
-              results.unshift(_this.buildSuggestionForTerm(term));
-            }
-
-            return results;
-          });
-        }
-
-        newOptions = this.filter(_ember['default'].A(newOptions), term);
-        if (this.shouldShowCreateOption(term)) {
-          newOptions.unshift(this.buildSuggestionForTerm(term));
-        }
-
-        return newOptions;
-      },
-
-      selectOrCreate: function selectOrCreate(selection) {
-        var suggestion = undefined;
-        if (this.get('multiple')) {
-          suggestion = selection.filter(function (option) {
-            return option.__isSuggestion__;
-          })[0];
-        } else if (selection && selection.__isSuggestion__) {
-          suggestion = selection;
-        }
-
-        if (suggestion) {
-          this.get('oncreate')(suggestion.__value__);
-        } else {
-          this.get('onchange')(selection);
-        }
-      }
-    },
-
-    // Methods
-    filter: function filter(options, searchText) {
-      var _this2 = this;
-
-      var matcher = undefined;
-      if (this.get('searchField')) {
-        matcher = function (option, text) {
-          return _this2.matcher(get(option, _this2.get('searchField')), text);
-        };
-      } else {
-        matcher = function (option, text) {
-          return _this2.matcher(option, text);
-        };
-      }
-      return (0, _emberPowerSelectUtilsGroupUtils.filterOptions)(options || [], searchText, matcher);
-    },
-
-    buildSuggestionForTerm: function buildSuggestionForTerm(term) {
-      return {
-        __isSuggestion__: true,
-        __value__: term,
-        text: this.buildSuggestionLabel(term)
-      };
-    },
-
-    buildSuggestionLabel: function buildSuggestionLabel(term) {
-      var buildSuggestion = this.get('buildSuggestion');
-      if (buildSuggestion) {
-        return buildSuggestion(term);
-      }
-      return 'Add "' + term + '"...';
-    }
-  });
-});
-define("ember-power-select-with-create/templates/components/power-select-with-create", ["exports"], function (exports) {
-  "use strict";
-
-  exports["default"] = Ember.HTMLBars.template((function () {
-    var child0 = (function () {
-      var child0 = (function () {
-        return {
-          meta: {
-            "fragmentReason": false,
-            "revision": "Ember@2.5.1",
-            "loc": {
-              "source": null,
-              "start": {
-                "line": 44,
-                "column": 2
-              },
-              "end": {
-                "line": 46,
-                "column": 2
-              }
-            },
-            "moduleName": "modules/ember-power-select-with-create/templates/components/power-select-with-create.hbs"
-          },
-          isEmpty: false,
-          arity: 0,
-          cachedFragment: null,
-          hasRendered: false,
-          buildFragment: function buildFragment(dom) {
-            var el0 = dom.createDocumentFragment();
-            var el1 = dom.createTextNode("    ");
-            dom.appendChild(el0, el1);
-            var el1 = dom.createComment("");
-            dom.appendChild(el0, el1);
-            var el1 = dom.createTextNode("\n");
-            dom.appendChild(el0, el1);
-            return el0;
-          },
-          buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-            var morphs = new Array(1);
-            morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
-            return morphs;
-          },
-          statements: [["content", "option.text", ["loc", [null, [45, 4], [45, 19]]]]],
-          locals: [],
-          templates: []
-        };
-      })();
-      var child1 = (function () {
-        return {
-          meta: {
-            "fragmentReason": false,
-            "revision": "Ember@2.5.1",
-            "loc": {
-              "source": null,
-              "start": {
-                "line": 46,
-                "column": 2
-              },
-              "end": {
-                "line": 48,
-                "column": 2
-              }
-            },
-            "moduleName": "modules/ember-power-select-with-create/templates/components/power-select-with-create.hbs"
-          },
-          isEmpty: false,
-          arity: 0,
-          cachedFragment: null,
-          hasRendered: false,
-          buildFragment: function buildFragment(dom) {
-            var el0 = dom.createDocumentFragment();
-            var el1 = dom.createTextNode("    ");
-            dom.appendChild(el0, el1);
-            var el1 = dom.createComment("");
-            dom.appendChild(el0, el1);
-            var el1 = dom.createTextNode("\n");
-            dom.appendChild(el0, el1);
-            return el0;
-          },
-          buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-            var morphs = new Array(1);
-            morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
-            return morphs;
-          },
-          statements: [["inline", "yield", [["get", "option", ["loc", [null, [47, 12], [47, 18]]]], ["get", "term", ["loc", [null, [47, 19], [47, 23]]]]], [], ["loc", [null, [47, 4], [47, 25]]]]],
-          locals: [],
-          templates: []
-        };
-      })();
-      return {
-        meta: {
-          "fragmentReason": {
-            "name": "missing-wrapper",
-            "problems": ["wrong-type"]
-          },
-          "revision": "Ember@2.5.1",
-          "loc": {
-            "source": null,
-            "start": {
-              "line": 1,
-              "column": 0
-            },
-            "end": {
-              "line": 49,
-              "column": 0
-            }
-          },
-          "moduleName": "modules/ember-power-select-with-create/templates/components/power-select-with-create.hbs"
-        },
-        isEmpty: false,
-        arity: 2,
-        cachedFragment: null,
-        hasRendered: false,
-        buildFragment: function buildFragment(dom) {
-          var el0 = dom.createDocumentFragment();
-          var el1 = dom.createComment("");
-          dom.appendChild(el0, el1);
-          return el0;
-        },
-        buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-          var morphs = new Array(1);
-          morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
-          dom.insertBoundary(fragment, 0);
-          dom.insertBoundary(fragment, null);
-          return morphs;
-        },
-        statements: [["block", "if", [["get", "option.__isSuggestion__", ["loc", [null, [44, 8], [44, 31]]]]], [], 0, 1, ["loc", [null, [44, 2], [48, 9]]]]],
-        locals: ["option", "term"],
-        templates: [child0, child1]
-      };
-    })();
-    return {
-      meta: {
-        "fragmentReason": {
-          "name": "missing-wrapper",
-          "problems": ["wrong-type"]
-        },
-        "revision": "Ember@2.5.1",
-        "loc": {
-          "source": null,
-          "start": {
-            "line": 1,
-            "column": 0
-          },
-          "end": {
-            "line": 50,
-            "column": 0
-          }
-        },
-        "moduleName": "modules/ember-power-select-with-create/templates/components/power-select-with-create.hbs"
-      },
-      isEmpty: false,
-      arity: 0,
-      cachedFragment: null,
-      hasRendered: false,
-      buildFragment: function buildFragment(dom) {
-        var el0 = dom.createDocumentFragment();
-        var el1 = dom.createComment("");
-        dom.appendChild(el0, el1);
-        return el0;
-      },
-      buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-        var morphs = new Array(1);
-        morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
-        dom.insertBoundary(fragment, 0);
-        dom.insertBoundary(fragment, null);
-        return morphs;
-      },
-      statements: [["block", "component", [["get", "powerSelectComponentName", ["loc", [null, [1, 13], [1, 37]]]]], ["ariaDescribedBy", ["subexpr", "@mut", [["get", "ariaDescribedBy", ["loc", [null, [2, 20], [2, 35]]]]], [], []], "ariaInvalid", ["subexpr", "@mut", [["get", "ariaInvalid", ["loc", [null, [3, 16], [3, 27]]]]], [], []], "ariaLabel", ["subexpr", "@mut", [["get", "ariaLabel", ["loc", [null, [4, 14], [4, 23]]]]], [], []], "ariaLabelledBy", ["subexpr", "@mut", [["get", "ariaLabelledBy", ["loc", [null, [5, 19], [5, 33]]]]], [], []], "options", ["subexpr", "@mut", [["get", "optionsArray", ["loc", [null, [6, 12], [6, 24]]]]], [], []], "selected", ["subexpr", "@mut", [["get", "selected", ["loc", [null, [7, 13], [7, 21]]]]], [], []], "onchange", ["subexpr", "action", ["selectOrCreate"], [], ["loc", [null, [8, 13], [8, 38]]]], "onkeydown", ["subexpr", "@mut", [["get", "onkeydown", ["loc", [null, [9, 14], [9, 23]]]]], [], []], "onfocus", ["subexpr", "@mut", [["get", "onfocus", ["loc", [null, [10, 12], [10, 19]]]]], [], []], "onopen", ["subexpr", "@mut", [["get", "onopen", ["loc", [null, [11, 11], [11, 17]]]]], [], []], "onclose", ["subexpr", "@mut", [["get", "onclose", ["loc", [null, [12, 12], [12, 19]]]]], [], []], "search", ["subexpr", "action", ["searchAndSuggest"], [], ["loc", [null, [13, 11], [13, 38]]]], "disabled", ["subexpr", "@mut", [["get", "disabled", ["loc", [null, [14, 13], [14, 21]]]]], [], []], "placeholder", ["subexpr", "@mut", [["get", "placeholder", ["loc", [null, [15, 16], [15, 27]]]]], [], []], "searchEnabled", ["subexpr", "@mut", [["get", "searchEnabled", ["loc", [null, [16, 18], [16, 31]]]]], [], []], "searchPlaceholder", ["subexpr", "@mut", [["get", "searchPlaceholder", ["loc", [null, [17, 22], [17, 39]]]]], [], []], "searchField", ["subexpr", "@mut", [["get", "searchField", ["loc", [null, [18, 16], [18, 27]]]]], [], []], "matcher", ["subexpr", "@mut", [["get", "matcher", ["loc", [null, [19, 12], [19, 19]]]]], [], []], "loadingMessage", ["subexpr", "@mut", [["get", "loadingMessage", ["loc", [null, [20, 19], [20, 33]]]]], [], []], "noMatchesMessage", ["subexpr", "@mut", [["get", "noMatchesMessage", ["loc", [null, [21, 21], [21, 37]]]]], [], []], "searchMessage", ["subexpr", "@mut", [["get", "searchMessage", ["loc", [null, [22, 18], [22, 31]]]]], [], []], "triggerComponent", ["subexpr", "@mut", [["get", "triggerComponent", ["loc", [null, [23, 21], [23, 37]]]]], [], []], "selectedItemComponent", ["subexpr", "@mut", [["get", "selectedItemComponent", ["loc", [null, [24, 26], [24, 47]]]]], [], []], "afterOptionsComponent", ["subexpr", "@mut", [["get", "afterOptionsComponent", ["loc", [null, [25, 26], [25, 47]]]]], [], []], "beforeOptionsComponent", ["subexpr", "@mut", [["get", "beforeOptionsComponent", ["loc", [null, [26, 27], [26, 49]]]]], [], []], "optionsComponent", ["subexpr", "@mut", [["get", "optionsComponent", ["loc", [null, [27, 21], [27, 37]]]]], [], []], "renderInPlace", ["subexpr", "@mut", [["get", "renderInPlace", ["loc", [null, [28, 18], [28, 31]]]]], [], []], "closeOnSelect", ["subexpr", "@mut", [["get", "closeOnSelect", ["loc", [null, [29, 18], [29, 31]]]]], [], []], "allowClear", ["subexpr", "@mut", [["get", "allowClear", ["loc", [null, [30, 15], [30, 25]]]]], [], []], "verticalPosition", ["subexpr", "@mut", [["get", "verticalPosition", ["loc", [null, [31, 21], [31, 37]]]]], [], []], "horizontalPosition", ["subexpr", "@mut", [["get", "horizontalPosition", ["loc", [null, [32, 23], [32, 41]]]]], [], []], "class", ["subexpr", "@mut", [["get", "class", ["loc", [null, [33, 10], [33, 15]]]]], [], []], "triggerClass", ["subexpr", "@mut", [["get", "triggerClass", ["loc", [null, [34, 17], [34, 29]]]]], [], []], "dropdownClass", ["subexpr", "@mut", [["get", "dropdownClass", ["loc", [null, [35, 18], [35, 31]]]]], [], []], "extra", ["subexpr", "@mut", [["get", "extra", ["loc", [null, [36, 10], [36, 15]]]]], [], []], "initiallyOpened", ["subexpr", "@mut", [["get", "initiallyOpened", ["loc", [null, [37, 20], [37, 35]]]]], [], []], "matchTriggerWidth", ["subexpr", "@mut", [["get", "matchTriggerWidth", ["loc", [null, [38, 22], [38, 39]]]]], [], []], "destination", ["subexpr", "@mut", [["get", "destination", ["loc", [null, [39, 16], [39, 27]]]]], [], []], "tabindex", ["subexpr", "@mut", [["get", "tabindex", ["loc", [null, [40, 13], [40, 21]]]]], [], []], "dir", ["subexpr", "@mut", [["get", "dir", ["loc", [null, [41, 8], [41, 11]]]]], [], []]], 0, null, ["loc", [null, [1, 0], [49, 14]]]]],
-      locals: [],
-      templates: [child0]
-    };
-  })());
 });
 define('ember-resolver/container-debug-adapter', ['exports', 'ember', 'ember-resolver/utils/module-registry'], function (exports, _ember, _emberResolverUtilsModuleRegistry) {
   'use strict';

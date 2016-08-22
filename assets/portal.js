@@ -22,14 +22,14 @@ define('portal/app', ['exports', 'ember', 'portal/resolver', 'ember-load-initial
 
   exports['default'] = App;
 });
-define('portal/application/adapter', ['exports', 'ember', 'ember-data/adapters/json-api', 'portal/config/environment'], function (exports, _ember, _emberDataAdaptersJsonApi, _portalConfigEnvironment) {
+define('portal/application/adapter', ['exports', 'ember-data/adapters/json-api', 'portal/config/environment'], function (exports, _emberDataAdaptersJsonApi, _portalConfigEnvironment) {
    exports['default'] = _emberDataAdaptersJsonApi['default'].extend({
-      session: _ember['default'].inject.service('custom-session'),
+      session: Ember.inject.service('custom-session'),
       // host: 'https://36c2b03f.ngrok.io',
       host: _portalConfigEnvironment['default'].host,
       // headers: ENV.headers,
       namespace: _portalConfigEnvironment['default'].namespace,
-      headers: _ember['default'].computed('session.token', function () {
+      headers: Ember.computed('session.token', function () {
          return {
             "Authorization": this.get("session.token"),
             "X-SITE-ID": "1",
@@ -73,19 +73,19 @@ define('portal/components/app-version', ['exports', 'ember-cli-app-version/compo
     name: name
   });
 });
-define('portal/components/basic-dropdown/content', ['exports', 'ember-basic-dropdown/components/basic-dropdown/content'], function (exports, _emberBasicDropdownComponentsBasicDropdownContent) {
-  Object.defineProperty(exports, 'default', {
-    enumerable: true,
-    get: function get() {
-      return _emberBasicDropdownComponentsBasicDropdownContent['default'];
-    }
-  });
-});
 define('portal/components/basic-dropdown', ['exports', 'ember-basic-dropdown/components/basic-dropdown'], function (exports, _emberBasicDropdownComponentsBasicDropdown) {
   Object.defineProperty(exports, 'default', {
     enumerable: true,
     get: function get() {
       return _emberBasicDropdownComponentsBasicDropdown['default'];
+    }
+  });
+});
+define('portal/components/basic-dropdown/content', ['exports', 'ember-basic-dropdown/components/basic-dropdown/content'], function (exports, _emberBasicDropdownComponentsBasicDropdownContent) {
+  Object.defineProperty(exports, 'default', {
+    enumerable: true,
+    get: function get() {
+      return _emberBasicDropdownComponentsBasicDropdownContent['default'];
     }
   });
 });
@@ -636,154 +636,6 @@ define("portal/components/element-checklist-item/template", ["exports"], functio
     };
   })());
 });
-define('portal/components/element-date/component', ['exports', 'ember'], function (exports, _ember) {
-  exports['default'] = _ember['default'].Component.extend({});
-});
-define("portal/components/element-date/template", ["exports"], function (exports) {
-  exports["default"] = Ember.HTMLBars.template((function () {
-    var child0 = (function () {
-      return {
-        meta: {
-          "fragmentReason": {
-            "name": "missing-wrapper",
-            "problems": ["multiple-nodes", "wrong-type"]
-          },
-          "revision": "Ember@2.5.1",
-          "loc": {
-            "source": null,
-            "start": {
-              "line": 1,
-              "column": 0
-            },
-            "end": {
-              "line": 4,
-              "column": 0
-            }
-          },
-          "moduleName": "portal/components/element-date/template.hbs"
-        },
-        isEmpty: false,
-        arity: 0,
-        cachedFragment: null,
-        hasRendered: false,
-        buildFragment: function buildFragment(dom) {
-          var el0 = dom.createDocumentFragment();
-          var el1 = dom.createTextNode("	");
-          dom.appendChild(el0, el1);
-          var el1 = dom.createElement("div");
-          dom.setAttribute(el1, "class", "questionText");
-          var el2 = dom.createTextNode("Question Text");
-          dom.appendChild(el1, el2);
-          dom.appendChild(el0, el1);
-          var el1 = dom.createTextNode("\n    ");
-          dom.appendChild(el0, el1);
-          var el1 = dom.createComment("");
-          dom.appendChild(el0, el1);
-          var el1 = dom.createTextNode("\n");
-          dom.appendChild(el0, el1);
-          return el0;
-        },
-        buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-          var morphs = new Array(1);
-          morphs[0] = dom.createMorphAt(fragment, 3, 3, contextualElement);
-          return morphs;
-        },
-        statements: [["inline", "input", [], ["class", "form-control", "type", "text", "value", ["subexpr", "@mut", [["get", "input.name", ["loc", [null, [3, 51], [3, 61]]]]], [], []], "placeholder", "Question"], ["loc", [null, [3, 4], [3, 86]]]]],
-        locals: [],
-        templates: []
-      };
-    })();
-    var child1 = (function () {
-      return {
-        meta: {
-          "fragmentReason": false,
-          "revision": "Ember@2.5.1",
-          "loc": {
-            "source": null,
-            "start": {
-              "line": 4,
-              "column": 0
-            },
-            "end": {
-              "line": 9,
-              "column": 0
-            }
-          },
-          "moduleName": "portal/components/element-date/template.hbs"
-        },
-        isEmpty: false,
-        arity: 0,
-        cachedFragment: null,
-        hasRendered: false,
-        buildFragment: function buildFragment(dom) {
-          var el0 = dom.createDocumentFragment();
-          var el1 = dom.createTextNode("	");
-          dom.appendChild(el0, el1);
-          var el1 = dom.createElement("div");
-          var el2 = dom.createTextNode("\n		");
-          dom.appendChild(el1, el2);
-          var el2 = dom.createComment("");
-          dom.appendChild(el1, el2);
-          var el2 = dom.createTextNode("\n	");
-          dom.appendChild(el1, el2);
-          dom.appendChild(el0, el1);
-          var el1 = dom.createTextNode("\n");
-          dom.appendChild(el0, el1);
-          return el0;
-        },
-        buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-          var morphs = new Array(1);
-          morphs[0] = dom.createMorphAt(dom.childAt(fragment, [1]), 1, 1);
-          return morphs;
-        },
-        statements: [["content", "input.name", ["loc", [null, [7, 2], [7, 16]]]]],
-        locals: [],
-        templates: []
-      };
-    })();
-    return {
-      meta: {
-        "fragmentReason": {
-          "name": "missing-wrapper",
-          "problems": ["wrong-type"]
-        },
-        "revision": "Ember@2.5.1",
-        "loc": {
-          "source": null,
-          "start": {
-            "line": 1,
-            "column": 0
-          },
-          "end": {
-            "line": 9,
-            "column": 7
-          }
-        },
-        "moduleName": "portal/components/element-date/template.hbs"
-      },
-      isEmpty: false,
-      arity: 0,
-      cachedFragment: null,
-      hasRendered: false,
-      buildFragment: function buildFragment(dom) {
-        var el0 = dom.createDocumentFragment();
-        var el1 = dom.createComment("");
-        dom.appendChild(el0, el1);
-        return el0;
-      },
-      buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-        var morphs = new Array(1);
-        morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
-        dom.insertBoundary(fragment, 0);
-        dom.insertBoundary(fragment, null);
-        return morphs;
-      },
-      statements: [["block", "if", [["get", "isActive", ["loc", [null, [1, 6], [1, 14]]]]], [], 0, 1, ["loc", [null, [1, 0], [9, 7]]]]],
-      locals: [],
-      templates: [child0, child1]
-    };
-  })());
-});
 define('portal/components/element-date-viewonly/component', ['exports', 'ember'], function (exports, _ember) {
   exports['default'] = _ember['default'].Component.extend({});
 });
@@ -908,6 +760,154 @@ define("portal/components/element-date-viewonly/template", ["exports"], function
           }
         },
         "moduleName": "portal/components/element-date-viewonly/template.hbs"
+      },
+      isEmpty: false,
+      arity: 0,
+      cachedFragment: null,
+      hasRendered: false,
+      buildFragment: function buildFragment(dom) {
+        var el0 = dom.createDocumentFragment();
+        var el1 = dom.createComment("");
+        dom.appendChild(el0, el1);
+        return el0;
+      },
+      buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+        var morphs = new Array(1);
+        morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
+        dom.insertBoundary(fragment, 0);
+        dom.insertBoundary(fragment, null);
+        return morphs;
+      },
+      statements: [["block", "if", [["get", "isActive", ["loc", [null, [1, 6], [1, 14]]]]], [], 0, 1, ["loc", [null, [1, 0], [9, 7]]]]],
+      locals: [],
+      templates: [child0, child1]
+    };
+  })());
+});
+define('portal/components/element-date/component', ['exports', 'ember'], function (exports, _ember) {
+  exports['default'] = _ember['default'].Component.extend({});
+});
+define("portal/components/element-date/template", ["exports"], function (exports) {
+  exports["default"] = Ember.HTMLBars.template((function () {
+    var child0 = (function () {
+      return {
+        meta: {
+          "fragmentReason": {
+            "name": "missing-wrapper",
+            "problems": ["multiple-nodes", "wrong-type"]
+          },
+          "revision": "Ember@2.5.1",
+          "loc": {
+            "source": null,
+            "start": {
+              "line": 1,
+              "column": 0
+            },
+            "end": {
+              "line": 4,
+              "column": 0
+            }
+          },
+          "moduleName": "portal/components/element-date/template.hbs"
+        },
+        isEmpty: false,
+        arity: 0,
+        cachedFragment: null,
+        hasRendered: false,
+        buildFragment: function buildFragment(dom) {
+          var el0 = dom.createDocumentFragment();
+          var el1 = dom.createTextNode("	");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createElement("div");
+          dom.setAttribute(el1, "class", "questionText");
+          var el2 = dom.createTextNode("Question Text");
+          dom.appendChild(el1, el2);
+          dom.appendChild(el0, el1);
+          var el1 = dom.createTextNode("\n    ");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createComment("");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createTextNode("\n");
+          dom.appendChild(el0, el1);
+          return el0;
+        },
+        buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+          var morphs = new Array(1);
+          morphs[0] = dom.createMorphAt(fragment, 3, 3, contextualElement);
+          return morphs;
+        },
+        statements: [["inline", "input", [], ["class", "form-control", "type", "text", "value", ["subexpr", "@mut", [["get", "input.name", ["loc", [null, [3, 51], [3, 61]]]]], [], []], "placeholder", "Question"], ["loc", [null, [3, 4], [3, 86]]]]],
+        locals: [],
+        templates: []
+      };
+    })();
+    var child1 = (function () {
+      return {
+        meta: {
+          "fragmentReason": false,
+          "revision": "Ember@2.5.1",
+          "loc": {
+            "source": null,
+            "start": {
+              "line": 4,
+              "column": 0
+            },
+            "end": {
+              "line": 9,
+              "column": 0
+            }
+          },
+          "moduleName": "portal/components/element-date/template.hbs"
+        },
+        isEmpty: false,
+        arity: 0,
+        cachedFragment: null,
+        hasRendered: false,
+        buildFragment: function buildFragment(dom) {
+          var el0 = dom.createDocumentFragment();
+          var el1 = dom.createTextNode("	");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createElement("div");
+          var el2 = dom.createTextNode("\n		");
+          dom.appendChild(el1, el2);
+          var el2 = dom.createComment("");
+          dom.appendChild(el1, el2);
+          var el2 = dom.createTextNode("\n	");
+          dom.appendChild(el1, el2);
+          dom.appendChild(el0, el1);
+          var el1 = dom.createTextNode("\n");
+          dom.appendChild(el0, el1);
+          return el0;
+        },
+        buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+          var morphs = new Array(1);
+          morphs[0] = dom.createMorphAt(dom.childAt(fragment, [1]), 1, 1);
+          return morphs;
+        },
+        statements: [["content", "input.name", ["loc", [null, [7, 2], [7, 16]]]]],
+        locals: [],
+        templates: []
+      };
+    })();
+    return {
+      meta: {
+        "fragmentReason": {
+          "name": "missing-wrapper",
+          "problems": ["wrong-type"]
+        },
+        "revision": "Ember@2.5.1",
+        "loc": {
+          "source": null,
+          "start": {
+            "line": 1,
+            "column": 0
+          },
+          "end": {
+            "line": 9,
+            "column": 7
+          }
+        },
+        "moduleName": "portal/components/element-date/template.hbs"
       },
       isEmpty: false,
       arity: 0,
@@ -1595,7 +1595,7 @@ define('portal/components/element-parent/component', ['exports', 'ember'], funct
             },
             onElementTypeClick: function onElementTypeClick(selection) {
                 this.set('currentType', selection);
-                this.set('formElement.element_type', selection.value);
+                this.set('formElement.element-type', selection.value);
             },
             requiredChanged: function requiredChanged() {
                 this.set('formElement.required', !this.get('formElement.required'));
@@ -4187,6 +4187,38 @@ define("portal/components/input-label-and-check/template", ["exports"], function
     };
   })());
 });
+define('portal/components/power-select-multiple', ['exports', 'ember-power-select/components/power-select-multiple'], function (exports, _emberPowerSelectComponentsPowerSelectMultiple) {
+  Object.defineProperty(exports, 'default', {
+    enumerable: true,
+    get: function get() {
+      return _emberPowerSelectComponentsPowerSelectMultiple['default'];
+    }
+  });
+});
+define('portal/components/power-select-multiple/trigger', ['exports', 'ember-power-select/components/power-select-multiple/trigger'], function (exports, _emberPowerSelectComponentsPowerSelectMultipleTrigger) {
+  Object.defineProperty(exports, 'default', {
+    enumerable: true,
+    get: function get() {
+      return _emberPowerSelectComponentsPowerSelectMultipleTrigger['default'];
+    }
+  });
+});
+define('portal/components/power-select-with-create', ['exports', 'ember-power-select-with-create/components/power-select-with-create'], function (exports, _emberPowerSelectWithCreateComponentsPowerSelectWithCreate) {
+  Object.defineProperty(exports, 'default', {
+    enumerable: true,
+    get: function get() {
+      return _emberPowerSelectWithCreateComponentsPowerSelectWithCreate['default'];
+    }
+  });
+});
+define('portal/components/power-select', ['exports', 'ember-power-select/components/power-select'], function (exports, _emberPowerSelectComponentsPowerSelect) {
+  Object.defineProperty(exports, 'default', {
+    enumerable: true,
+    get: function get() {
+      return _emberPowerSelectComponentsPowerSelect['default'];
+    }
+  });
+});
 define('portal/components/power-select/before-options', ['exports', 'ember-power-select/components/power-select/before-options'], function (exports, _emberPowerSelectComponentsPowerSelectBeforeOptions) {
   Object.defineProperty(exports, 'default', {
     enumerable: true,
@@ -4208,38 +4240,6 @@ define('portal/components/power-select/trigger', ['exports', 'ember-power-select
     enumerable: true,
     get: function get() {
       return _emberPowerSelectComponentsPowerSelectTrigger['default'];
-    }
-  });
-});
-define('portal/components/power-select-multiple/trigger', ['exports', 'ember-power-select/components/power-select-multiple/trigger'], function (exports, _emberPowerSelectComponentsPowerSelectMultipleTrigger) {
-  Object.defineProperty(exports, 'default', {
-    enumerable: true,
-    get: function get() {
-      return _emberPowerSelectComponentsPowerSelectMultipleTrigger['default'];
-    }
-  });
-});
-define('portal/components/power-select-multiple', ['exports', 'ember-power-select/components/power-select-multiple'], function (exports, _emberPowerSelectComponentsPowerSelectMultiple) {
-  Object.defineProperty(exports, 'default', {
-    enumerable: true,
-    get: function get() {
-      return _emberPowerSelectComponentsPowerSelectMultiple['default'];
-    }
-  });
-});
-define('portal/components/power-select-with-create', ['exports', 'ember-power-select-with-create/components/power-select-with-create'], function (exports, _emberPowerSelectWithCreateComponentsPowerSelectWithCreate) {
-  Object.defineProperty(exports, 'default', {
-    enumerable: true,
-    get: function get() {
-      return _emberPowerSelectWithCreateComponentsPowerSelectWithCreate['default'];
-    }
-  });
-});
-define('portal/components/power-select', ['exports', 'ember-power-select/components/power-select'], function (exports, _emberPowerSelectComponentsPowerSelect) {
-  Object.defineProperty(exports, 'default', {
-    enumerable: true,
-    get: function get() {
-      return _emberPowerSelectComponentsPowerSelect['default'];
     }
   });
 });
@@ -4433,6 +4433,28 @@ define('portal/driver/model', ['exports', 'ember-data', 'ember-data/model'], fun
 
   });
 });
+define('portal/element-key/adapter', ['exports', 'ember-data/adapters/json-api', 'portal/config/environment'], function (exports, _emberDataAdaptersJsonApi, _portalConfigEnvironment) {
+  exports['default'] = _emberDataAdaptersJsonApi['default'].extend({
+    urlForFindAll: function urlForFindAll(modelName, snapshot) {
+      return _portalConfigEnvironment['default'].host + '/' + _portalConfigEnvironment['default'].namespace + '/element_keys';
+    }
+  });
+});
+define('portal/element-key/model', ['exports', 'ember-data/model', 'ember-data'], function (exports, _emberDataModel, _emberData) {
+  exports['default'] = _emberDataModel['default'].extend({
+    keys: _emberData['default'].attr()
+  });
+});
+define('portal/element-type/adapter', ['exports', 'ember-data/adapters/json-api', 'portal/config/environment'], function (exports, _emberDataAdaptersJsonApi, _portalConfigEnvironment) {
+  exports['default'] = _emberDataAdaptersJsonApi['default'].extend({
+    urlForFindAll: function urlForFindAll(modelName, snapshot) {
+      return _portalConfigEnvironment['default'].host + '/' + _portalConfigEnvironment['default'].namespace + '/element_types';
+    }
+  });
+});
+define('portal/element-type/model', ['exports', 'ember-data/model'], function (exports, _emberDataModel) {
+  exports['default'] = _emberDataModel['default'].extend({});
+});
 define('portal/element/adapter', ['exports', 'ember-data/adapters/json-api', 'portal/config/environment'], function (exports, _emberDataAdaptersJsonApi, _portalConfigEnvironment) {
     exports['default'] = _emberDataAdaptersJsonApi['default'].extend({
         host: _portalConfigEnvironment['default'].host,
@@ -4478,28 +4500,6 @@ define('portal/element/model', ['exports', 'ember-data', 'ember-data/model'], fu
     section: _emberData['default'].hasMany('section')
   });
 });
-define('portal/element-key/adapter', ['exports', 'ember-data/adapters/json-api', 'portal/config/environment'], function (exports, _emberDataAdaptersJsonApi, _portalConfigEnvironment) {
-  exports['default'] = _emberDataAdaptersJsonApi['default'].extend({
-    urlForFindAll: function urlForFindAll(modelName, snapshot) {
-      return _portalConfigEnvironment['default'].host + '/' + _portalConfigEnvironment['default'].namespace + '/element_keys';
-    }
-  });
-});
-define('portal/element-key/model', ['exports', 'ember-data/model', 'ember-data'], function (exports, _emberDataModel, _emberData) {
-  exports['default'] = _emberDataModel['default'].extend({
-    keys: _emberData['default'].attr()
-  });
-});
-define('portal/element-type/adapter', ['exports', 'ember-data/adapters/json-api', 'portal/config/environment'], function (exports, _emberDataAdaptersJsonApi, _portalConfigEnvironment) {
-  exports['default'] = _emberDataAdaptersJsonApi['default'].extend({
-    urlForFindAll: function urlForFindAll(modelName, snapshot) {
-      return _portalConfigEnvironment['default'].host + '/' + _portalConfigEnvironment['default'].namespace + '/element_types';
-    }
-  });
-});
-define('portal/element-type/model', ['exports', 'ember-data/model'], function (exports, _emberDataModel) {
-  exports['default'] = _emberDataModel['default'].extend({});
-});
 define('portal/form/controller', ['exports', 'ember', 'portal/config/environment'], function (exports, _ember, _portalConfigEnvironment) {
     exports['default'] = _ember['default'].Controller.extend({
         formsCtrl: _ember['default'].inject.controller('forms'),
@@ -4513,15 +4513,13 @@ define('portal/form/controller', ['exports', 'ember', 'portal/config/environment
                 var form = this.get('model');
                 var lastSection = section;
                 var newElement = this.store.createRecord('element', {
-                    element_type: 'text',
-                    metadata: {}
+                    element_type: 'text'
                 });
                 section.get('elements').addObject(newElement);
             },
             addElementAfterElement: function addElementAfterElement(section, element, index) {
                 var newElement = this.store.createRecord('element', {
-                    element_type: 'text',
-                    metadata: {}
+                    element_type: 'text'
                 });
                 section.get('elements').insertAt(index + 1, newElement);
             },
@@ -4795,7 +4793,7 @@ define("portal/form/template", ["exports"], function (exports) {
                   dom.setAttribute(el2, "aria-hidden", "true");
                   dom.appendChild(el1, el2);
                   var el2 = dom.createElement("span");
-                  var el3 = dom.createTextNode("Insert Element");
+                  var el3 = dom.createTextNode("Add Element");
                   dom.appendChild(el2, el3);
                   dom.appendChild(el1, el2);
                   var el2 = dom.createTextNode("                                \n                                ");
@@ -4998,7 +4996,7 @@ define("portal/form/template", ["exports"], function (exports) {
             dom.setAttribute(el3, "aria-hidden", "true");
             dom.appendChild(el2, el3);
             var el3 = dom.createElement("span");
-            var el4 = dom.createTextNode("Add Element");
+            var el4 = dom.createTextNode("Insert Element");
             dom.appendChild(el3, el4);
             dom.appendChild(el2, el3);
             var el3 = dom.createTextNode("\n                    ");
@@ -7258,7 +7256,7 @@ catch(err) {
 /* jshint ignore:start */
 
 if (!runningTests) {
-  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+ccdd075f"});
+  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+0231087d"});
 }
 
 /* jshint ignore:end */
