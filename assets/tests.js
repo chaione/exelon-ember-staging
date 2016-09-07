@@ -229,7 +229,7 @@ define('portal/tests/components/input-label-and-check/component.jshint', ['expor
   QUnit.module('JSHint | components/input-label-and-check/component.js');
   QUnit.test('should pass jshint', function (assert) {
     assert.expect(1);
-    assert.ok(false, 'components/input-label-and-check/component.js should pass jshint.\ncomponents/input-label-and-check/component.js: line 13, col 21, Expected \'===\' and instead saw \'==\'.\n\n1 error');
+    assert.ok(true, 'components/input-label-and-check/component.js should pass jshint.');
   });
 });
 define('portal/tests/custom-session/service.jshint', ['exports'], function (exports) {

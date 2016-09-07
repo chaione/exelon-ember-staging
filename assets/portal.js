@@ -4255,11 +4255,16 @@ define('portal/components/input-label-and-check/component', ['exports', 'ember']
         var value = this.get('value');
         if (!value) {
           value = 'false';
-        }if (value === 'f') {
+        } else if (value === 'f') {
           value = 'false';
-        }if (value == 't') {
+        } else if (value === 't') {
           value = 'true';
+        } else if (value === 'yes') {
+          value = 'true';
+        } else if (value === 'no') {
+          value = 'false';
         }
+
         value = JSON.parse(value);
 
         this.set('value', !value);
@@ -4367,8 +4372,8 @@ define("portal/components/input-label-and-check/template", ["exports"], function
             "column": 0
           },
           "end": {
-            "line": 8,
-            "column": 7
+            "line": 9,
+            "column": 0
           }
         },
         "moduleName": "portal/components/input-label-and-check/template.hbs"
@@ -4388,6 +4393,8 @@ define("portal/components/input-label-and-check/template", ["exports"], function
         dom.appendChild(el1, el2);
         var el2 = dom.createComment("");
         dom.appendChild(el1, el2);
+        dom.appendChild(el0, el1);
+        var el1 = dom.createTextNode("\n");
         dom.appendChild(el0, el1);
         return el0;
       },
@@ -5672,7 +5679,7 @@ define('portal/helpers/boolean-checker', ['exports', 'ember'], function (exports
 
   exports.booleanChecker = booleanChecker;
 
-  function booleanChecker(params /*, hash*/) {
+  function booleanChecker(params) {
     var _params = _slicedToArray(params, 1);
 
     var condition = _params[0];
@@ -5683,8 +5690,11 @@ define('portal/helpers/boolean-checker', ['exports', 'ember'], function (exports
       condition = 'false';
     } else if (condition === 't') {
       condition = 'true';
+    } else if (condition === 'yes') {
+      condition = 'true';
+    } else if (condition === 'no') {
+      condition = 'false';
     }
-    console.log(params, ' => ', condition);
 
     return JSON.parse(condition);
   }
@@ -7514,7 +7524,7 @@ catch(err) {
 /* jshint ignore:start */
 
 if (!runningTests) {
-  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+48a4659d"});
+  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+ded8c4fa"});
 }
 
 /* jshint ignore:end */
