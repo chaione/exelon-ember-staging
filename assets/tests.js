@@ -13,7 +13,7 @@ define('portal/tests/application/adapter.jshint', ['exports'], function (exports
   QUnit.module('JSHint | application/adapter.js');
   QUnit.test('should pass jshint', function (assert) {
     assert.expect(1);
-    assert.ok(false, 'application/adapter.js should pass jshint.\napplication/adapter.js: line 5, col 14, \'Ember\' is not defined.\napplication/adapter.js: line 10, col 14, \'Ember\' is not defined.\n\n2 errors');
+    assert.ok(false, 'application/adapter.js should pass jshint.\napplication/adapter.js: line 5, col 14, \'Ember\' is not defined.\napplication/adapter.js: line 10, col 12, \'Ember\' is not defined.\n\n2 errors');
   });
 });
 define('portal/tests/application/controller.jshint', ['exports'], function (exports) {
@@ -229,7 +229,7 @@ define('portal/tests/components/input-label-and-check/component.jshint', ['expor
   QUnit.module('JSHint | components/input-label-and-check/component.js');
   QUnit.test('should pass jshint', function (assert) {
     assert.expect(1);
-    assert.ok(false, 'components/input-label-and-check/component.js should pass jshint.\ncomponents/input-label-and-check/component.js: line 10, col 14, Unnecessary semicolon.\n\n1 error');
+    assert.ok(false, 'components/input-label-and-check/component.js should pass jshint.\ncomponents/input-label-and-check/component.js: line 13, col 21, Expected \'===\' and instead saw \'==\'.\n\n1 error');
   });
 });
 define('portal/tests/custom-session/service.jshint', ['exports'], function (exports) {
@@ -238,7 +238,7 @@ define('portal/tests/custom-session/service.jshint', ['exports'], function (expo
   QUnit.module('JSHint | custom-session/service.js');
   QUnit.test('should pass jshint', function (assert) {
     assert.expect(1);
-    assert.ok(false, 'custom-session/service.js should pass jshint.\ncustom-session/service.js: line 12, col 9, \'$\' is not defined.\n\n1 error');
+    assert.ok(false, 'custom-session/service.js should pass jshint.\ncustom-session/service.js: line 13, col 5, \'$\' is not defined.\n\n1 error');
   });
 });
 define('portal/tests/deliveries/controller.jshint', ['exports'], function (exports) {
@@ -283,7 +283,7 @@ define('portal/tests/element-key/adapter.jshint', ['exports'], function (exports
   QUnit.module('JSHint | element-key/adapter.js');
   QUnit.test('should pass jshint', function (assert) {
     assert.expect(1);
-    assert.ok(false, 'element-key/adapter.js should pass jshint.\nelement-key/adapter.js: line 5, col 41, \'snapshot\' is defined but never used.\nelement-key/adapter.js: line 5, col 30, \'modelName\' is defined but never used.\n\n2 errors');
+    assert.ok(false, 'element-key/adapter.js should pass jshint.\nelement-key/adapter.js: line 5, col 37, \'snapshot\' is defined but never used.\nelement-key/adapter.js: line 5, col 26, \'modelName\' is defined but never used.\n\n2 errors');
   });
 });
 define('portal/tests/element-key/model.jshint', ['exports'], function (exports) {
@@ -301,7 +301,7 @@ define('portal/tests/element-type/adapter.jshint', ['exports'], function (export
   QUnit.module('JSHint | element-type/adapter.js');
   QUnit.test('should pass jshint', function (assert) {
     assert.expect(1);
-    assert.ok(false, 'element-type/adapter.js should pass jshint.\nelement-type/adapter.js: line 5, col 41, \'snapshot\' is defined but never used.\nelement-type/adapter.js: line 5, col 30, \'modelName\' is defined but never used.\n\n2 errors');
+    assert.ok(false, 'element-type/adapter.js should pass jshint.\nelement-type/adapter.js: line 5, col 37, \'snapshot\' is defined but never used.\nelement-type/adapter.js: line 5, col 26, \'modelName\' is defined but never used.\n\n2 errors');
   });
 });
 define('portal/tests/element-type/model.jshint', ['exports'], function (exports) {
@@ -374,6 +374,15 @@ define('portal/tests/forms/route.jshint', ['exports'], function (exports) {
   QUnit.test('should pass jshint', function (assert) {
     assert.expect(1);
     assert.ok(false, 'forms/route.js should pass jshint.\nforms/route.js: line 33, col 33, \'transition\' is defined but never used.\n\n1 error');
+  });
+});
+define('portal/tests/helpers/boolean-checker.jshint', ['exports'], function (exports) {
+  'use strict';
+
+  QUnit.module('JSHint | helpers/boolean-checker.js');
+  QUnit.test('should pass jshint', function (assert) {
+    assert.expect(1);
+    assert.ok(true, 'helpers/boolean-checker.js should pass jshint.');
   });
 });
 define('portal/tests/helpers/destroy-app', ['exports', 'ember'], function (exports, _ember) {
@@ -631,6 +640,15 @@ define('portal/tests/helpers/eq.jshint', ['exports'], function (exports) {
   QUnit.test('should pass jshint', function (assert) {
     assert.expect(1);
     assert.ok(true, 'helpers/eq.js should pass jshint.');
+  });
+});
+define('portal/tests/helpers/logger.jshint', ['exports'], function (exports) {
+  'use strict';
+
+  QUnit.module('JSHint | helpers/logger.js');
+  QUnit.test('should pass jshint', function (assert) {
+    assert.expect(1);
+    assert.ok(true, 'helpers/logger.js should pass jshint.');
   });
 });
 define('portal/tests/helpers/module-for-acceptance', ['exports', 'qunit', 'portal/tests/helpers/start-app', 'portal/tests/helpers/destroy-app'], function (exports, _qunit, _portalTestsHelpersStartApp, _portalTestsHelpersDestroyApp) {

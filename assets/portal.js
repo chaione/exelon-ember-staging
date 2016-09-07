@@ -23,22 +23,21 @@ define('portal/app', ['exports', 'ember', 'portal/resolver', 'ember-load-initial
   exports['default'] = App;
 });
 define('portal/application/adapter', ['exports', 'ember-data/adapters/json-api', 'portal/config/environment'], function (exports, _emberDataAdaptersJsonApi, _portalConfigEnvironment) {
-   exports['default'] = _emberDataAdaptersJsonApi['default'].extend({
-      session: Ember.inject.service('custom-session'),
-      // host: 'https://36c2b03f.ngrok.io',
-      host: _portalConfigEnvironment['default'].host,
-      // headers: ENV.headers,
-      namespace: _portalConfigEnvironment['default'].namespace,
-      headers: Ember.computed('session.token', function () {
-         return {
-            "Authorization": this.get("session.token"),
-            "X-SITE-ID": "1",
-            "Accept": "application/json",
-            "Content-Type": "application/json"
-         };
-      })
-
-   });
+  exports['default'] = _emberDataAdaptersJsonApi['default'].extend({
+    session: Ember.inject.service('custom-session'),
+    // host: 'https://36c2b03f.ngrok.io',
+    host: _portalConfigEnvironment['default'].host,
+    // headers: ENV.headers,
+    namespace: _portalConfigEnvironment['default'].namespace,
+    headers: Ember.computed('session.token', function () {
+      return {
+        "X-SITE-ID": _portalConfigEnvironment['default'].siteId,
+        "Authorization": 'Bearer ' + this.get("session.token"),
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      };
+    })
+  });
 });
 define('portal/application/controller', ['exports', 'ember'], function (exports, _ember) {
 	exports['default'] = _ember['default'].Controller.extend({
@@ -1920,10 +1919,10 @@ define("portal/components/element-parent/template", ["exports"], function (expor
             var el3 = dom.createTextNode("        ");
             dom.appendChild(el2, el3);
             dom.appendChild(el1, el2);
-            var el2 = dom.createTextNode("\n        \n\n\n    ");
+            var el2 = dom.createTextNode("\n\n\n\n    ");
             dom.appendChild(el1, el2);
             dom.appendChild(el0, el1);
-            var el1 = dom.createTextNode("   \n    ");
+            var el1 = dom.createTextNode("\n    ");
             dom.appendChild(el0, el1);
             var el1 = dom.createElement("br");
             dom.appendChild(el0, el1);
@@ -2834,8 +2833,8 @@ define("portal/components/element-parent/template", ["exports"], function (expor
             "column": 0
           },
           "end": {
-            "line": 120,
-            "column": 6
+            "line": 121,
+            "column": 0
           }
         },
         "moduleName": "portal/components/element-parent/template.hbs"
@@ -2877,15 +2876,15 @@ define("portal/components/element-parent/template", ["exports"], function (expor
         dom.appendChild(el1, el2);
         var el2 = dom.createComment("");
         dom.appendChild(el1, el2);
-        var el2 = dom.createTextNode("  \n");
-        dom.appendChild(el1, el2);
-        var el2 = dom.createElement("br");
-        dom.appendChild(el1, el2);
         var el2 = dom.createTextNode("\n");
         dom.appendChild(el1, el2);
         var el2 = dom.createElement("br");
         dom.appendChild(el1, el2);
-        var el2 = dom.createTextNode(" \n\n");
+        var el2 = dom.createTextNode("\n");
+        dom.appendChild(el1, el2);
+        var el2 = dom.createElement("br");
+        dom.appendChild(el1, el2);
+        var el2 = dom.createTextNode("\n\n");
         dom.appendChild(el1, el2);
         var el2 = dom.createComment("");
         dom.appendChild(el1, el2);
@@ -2925,6 +2924,8 @@ define("portal/components/element-parent/template", ["exports"], function (expor
         dom.appendChild(el1, el2);
         var el2 = dom.createTextNode("\n");
         dom.appendChild(el1, el2);
+        dom.appendChild(el0, el1);
+        var el1 = dom.createTextNode("\n");
         dom.appendChild(el0, el1);
         return el0;
       },
@@ -4246,18 +4247,25 @@ define('portal/components/ember-wormhole', ['exports', 'ember-wormhole/component
   });
 });
 define('portal/components/input-label-and-check/component', ['exports', 'ember'], function (exports, _ember) {
-    exports['default'] = _ember['default'].Component.extend({
-        classNames: ['input-label-and-check'],
-        actions: {
-            valueToggled: function valueToggled() {
-                var value = this.get('value');
-                if (value === null) {
-                    this.set('value', false);
-                };
-                this.set('value', !value);
-            }
+  exports['default'] = _ember['default'].Component.extend({
+    classNames: ['input-label-and-check'],
+
+    actions: {
+      valueToggled: function valueToggled() {
+        var value = this.get('value');
+        if (!value) {
+          value = 'false';
+        }if (value === 'f') {
+          value = 'false';
+        }if (value == 't') {
+          value = 'true';
         }
-    });
+        value = JSON.parse(value);
+
+        this.set('value', !value);
+      }
+    }
+  });
 });
 define("portal/components/input-label-and-check/template", ["exports"], function (exports) {
   exports["default"] = Ember.HTMLBars.template((function () {
@@ -4391,7 +4399,7 @@ define("portal/components/input-label-and-check/template", ["exports"], function
         morphs[2] = dom.createMorphAt(element0, 3, 3);
         return morphs;
       },
-      statements: [["element", "action", ["valueToggled"], [], ["loc", [null, [1, 6], [1, 31]]]], ["content", "label", ["loc", [null, [2, 4], [2, 13]]]], ["block", "if", [["get", "value", ["loc", [null, [3, 10], [3, 15]]]]], [], 0, 1, ["loc", [null, [3, 4], [7, 11]]]]],
+      statements: [["element", "action", ["valueToggled"], [], ["loc", [null, [1, 6], [1, 31]]]], ["content", "label", ["loc", [null, [2, 4], [2, 13]]]], ["block", "if", [["subexpr", "boolean-checker", [["get", "value", ["loc", [null, [3, 27], [3, 32]]]]], [], ["loc", [null, [3, 10], [3, 33]]]]], [], 0, 1, ["loc", [null, [3, 4], [7, 11]]]]],
       locals: [],
       templates: [child0, child1]
     };
@@ -4465,38 +4473,45 @@ define('portal/components/x-toggle', ['exports', 'ember-cli-toggle/components/x-
     size: config.defaultSize || 'medium'
   });
 });
-define('portal/custom-session/service', ['exports', 'ember'], function (exports, _ember) {
-	exports['default'] = _ember['default'].Service.extend({
-		routing: _ember['default'].inject.service('-routing'),
+define('portal/custom-session/service', ['exports', 'ember', 'portal/config/environment'], function (exports, _ember, _portalConfigEnvironment) {
+  exports['default'] = _ember['default'].Service.extend({
+    routing: _ember['default'].inject.service('-routing'),
 
-		token: null,
-		isAuthenticated: false,
+    token: null,
+    isAuthenticated: false,
 
-		authenticate: function authenticate(username, pass) {
-			var thisService = this;
-			console.log('Authenticate in the service!');
-			$.ajax({
-				method: "POST",
-				url: "https://exelon-api.herokuapp.com/v1/sessions",
-				data: { username: username, password: pass },
-				headers: {
-					"X-SITE-ID": "1"
-				}
-			}). // "Accept": "application/json",
-			// "Content-Type": "application/json"
-			done(function (msg) {
-				console.log(msg);
-				_ember['default'].set(thisService, 'token', msg.data.attributes.token);
-				_ember['default'].set(thisService, 'isAuthenticated', true);
-				thisService.get("routing").transitionTo("forms");
-			});
-		},
-		invalidate: function invalidate() {
-			_ember['default'].set(this, 'isAuthenticated', false);
-			_ember['default'].set(this, 'token', null);
-		}
+    authenticate: function authenticate(username, pass) {
+      var thisService = this;
 
-	});
+      $.ajax({
+        method: 'POST',
+        url: _portalConfigEnvironment['default'].host + '/' + _portalConfigEnvironment['default'].namespace + '/sessions',
+        data: {
+          data: {
+            attributes: {
+              username: username,
+              password: pass
+            }
+          }
+        },
+        headers: {
+          "X-SITE-ID": _portalConfigEnvironment['default'].siteId
+        }
+      }). // "Accept": "application/json",
+      // "Content-Type": "application/json"
+      done(function (msg) {
+        console.log(msg);
+        _ember['default'].set(thisService, 'token', msg.data.attributes.token);
+        _ember['default'].set(thisService, 'isAuthenticated', true);
+        thisService.get('routing').transitionTo('forms');
+      });
+    },
+
+    invalidate: function invalidate() {
+      _ember['default'].set(this, 'isAuthenticated', false);
+      _ember['default'].set(this, 'token', null);
+    }
+  });
 });
 define('portal/deliveries/controller', ['exports', 'ember'], function (exports, _ember) {
   exports['default'] = _ember['default'].Controller.extend({});
@@ -5652,6 +5667,30 @@ define('portal/helpers/and', ['exports', 'ember', 'ember-truth-helpers/helpers/a
 
   exports['default'] = forExport;
 });
+define('portal/helpers/boolean-checker', ['exports', 'ember'], function (exports, _ember) {
+  var _slicedToArray = (function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i['return']) _i['return'](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError('Invalid attempt to destructure non-iterable instance'); } }; })();
+
+  exports.booleanChecker = booleanChecker;
+
+  function booleanChecker(params /*, hash*/) {
+    var _params = _slicedToArray(params, 1);
+
+    var condition = _params[0];
+
+    if (!condition) {
+      condition = 'false';
+    } else if (condition === 'f') {
+      condition = 'false';
+    } else if (condition === 't') {
+      condition = 'true';
+    }
+    console.log(params, ' => ', condition);
+
+    return JSON.parse(condition);
+  }
+
+  exports['default'] = _ember['default'].Helper.helper(booleanChecker);
+});
 define('portal/helpers/ember-power-select-build-selection', ['exports', 'ember-power-select/helpers/ember-power-select-build-selection'], function (exports, _emberPowerSelectHelpersEmberPowerSelectBuildSelection) {
   Object.defineProperty(exports, 'default', {
     enumerable: true,
@@ -5729,6 +5768,15 @@ define('portal/helpers/is-array', ['exports', 'ember', 'ember-truth-helpers/help
   }
 
   exports['default'] = forExport;
+});
+define('portal/helpers/logger', ['exports', 'ember'], function (exports, _ember) {
+  exports.logger = logger;
+
+  function logger(params) {
+    console.log(params);
+  }
+
+  exports['default'] = _ember['default'].Helper.helper(logger);
 });
 define('portal/helpers/lt', ['exports', 'ember', 'ember-truth-helpers/helpers/lt'], function (exports, _ember, _emberTruthHelpersHelpersLt) {
 
@@ -7466,7 +7514,7 @@ catch(err) {
 /* jshint ignore:start */
 
 if (!runningTests) {
-  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+d92863b1"});
+  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+48a4659d"});
 }
 
 /* jshint ignore:end */
