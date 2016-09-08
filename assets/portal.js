@@ -4255,14 +4255,20 @@ define('portal/components/input-label-and-check/component', ['exports', 'ember']
         var value = this.get('value');
         if (!value) {
           value = 'false';
-        } else if (value === 'f') {
-          value = 'false';
-        } else if (value === 't') {
-          value = 'true';
-        } else if (value === 'yes') {
-          value = 'true';
-        } else if (value === 'no') {
-          value = 'false';
+        }
+        switch (value.toString().toLowerCase()) {
+          case 'f':
+          case 'no':
+          case 'false':
+            value = 'false';
+            break;
+          case 't':
+          case 'yes':
+          case 'true':
+            value = 'true';
+            break;
+          default:
+            value = 'false';
         }
 
         value = JSON.parse(value);
@@ -5686,14 +5692,20 @@ define('portal/helpers/boolean-checker', ['exports', 'ember'], function (exports
 
     if (!condition) {
       condition = 'false';
-    } else if (condition === 'f') {
-      condition = 'false';
-    } else if (condition === 't') {
-      condition = 'true';
-    } else if (condition === 'yes') {
-      condition = 'true';
-    } else if (condition === 'no') {
-      condition = 'false';
+    }
+    switch (condition.toString().toLowerCase()) {
+      case 'f':
+      case 'no':
+      case 'false':
+        condition = 'false';
+        break;
+      case 't':
+      case 'yes':
+      case 'true':
+        condition = 'true';
+        break;
+      default:
+        condition = 'false';
     }
 
     return JSON.parse(condition);
@@ -7524,7 +7536,7 @@ catch(err) {
 /* jshint ignore:start */
 
 if (!runningTests) {
-  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+ded8c4fa"});
+  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+89dff1c6"});
 }
 
 /* jshint ignore:end */
