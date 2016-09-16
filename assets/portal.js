@@ -932,109 +932,51 @@ define("portal/components/element-date/template", ["exports"], function (exports
   })());
 });
 define('portal/components/element-dropdown/component', ['exports', 'ember'], function (exports, _ember) {
-	var dropdownOptions = [{ name: 'Denied Entry List', value: 'Contraband Found, Missing Paperwork, Failed Search, Failed Itemizer, Arrived at Wrong Time, Other' }, { name: 'Vehicle Type List', value: 'Common Carrier, Non Common Carrier, Bulk Materials, Radioactive Or Hazmat, Emergency, Construction, Passenger IMP, PassengerNon IMP' }];
 
-	// “Contraband Found, Missing Paperwork, Failed Search, Failed Itemizer, Arrived at Wrong Time, Other"
-	exports['default'] = _ember['default'].Component.extend({
-		dropdownOptions: dropdownOptions,
-		currentDropdownChoice: _ember['default'].computed('input.options', function () {
-			var dropdownSelection = this.get('input.options');
-			console.log(dropdownSelection);
-			// debugger;
-			var choice = -1;
-			for (var i = 0; i < dropdownOptions.length; i++) {
-				if (dropdownOptions[i].value == this.get('input.options')) {
-					choice = i;
-				}
-			}
-			if (choice === -1) {
-				return null;
-			}
-			return dropdownOptions[choice];
-		}),
-		actions: {
-			onDropDownTypeClick: function onDropDownTypeClick(selection) {
-				// this.set('currentDropdownChoice', selection);
-				this.set('input.options', selection.value);
-			}
-		}
-	});
+  var DROPDOWN_OPTIONS = [{
+    name: 'Vehicle Category',
+    key: 'vehicle.vehicle-type',
+    placeholder: 'Select Vehicle Category',
+    value: 'VehicleCategories',
+    metadata: {
+      'dropdown-identifier': 'VehicleCategories'
+    }
+  }, {
+    name: 'Destination',
+    key: 'destination.name',
+    placeholder: 'Enter or select delivery location',
+    value: 'Destination',
+    metadata: {
+      'dropdown-identifier': 'Destination'
+    }
+  }];
+
+  exports['default'] = _ember['default'].Component.extend({
+    dropdownOptions: DROPDOWN_OPTIONS,
+
+    currentDropdownChoice: _ember['default'].computed('input.metadata.dropdown-identifier', function () {
+      var option = _.find(DROPDOWN_OPTIONS, { value: this.get('input.metadata.dropdown-identifier') });
+
+      return option ? { name: option.name, value: option.metadata['dropdown-identifier'] } : null;
+    }),
+
+    actions: {
+      onDropDownTypeClick: function onDropDownTypeClick(selection) {
+        var _this = this;
+
+        var target = _.find(DROPDOWN_OPTIONS, { value: selection.value });
+
+        _.map(['key', 'placeholder'], function (key) {
+          _this.set('input.' + key, target[key]);
+        });
+        this.set('input.metadata.dropdown-identifier', target.metadata['dropdown-identifier']);
+      }
+    }
+  });
 });
 define("portal/components/element-dropdown/template", ["exports"], function (exports) {
   exports["default"] = Ember.HTMLBars.template((function () {
     var child0 = (function () {
-      return {
-        meta: {
-          "fragmentReason": false,
-          "revision": "Ember@2.5.1",
-          "loc": {
-            "source": null,
-            "start": {
-              "line": 43,
-              "column": 8
-            },
-            "end": {
-              "line": 50,
-              "column": 8
-            }
-          },
-          "moduleName": "portal/components/element-dropdown/template.hbs"
-        },
-        isEmpty: false,
-        arity: 0,
-        cachedFragment: null,
-        hasRendered: false,
-        buildFragment: function buildFragment(dom) {
-          var el0 = dom.createDocumentFragment();
-          var el1 = dom.createTextNode("        	");
-          dom.appendChild(el0, el1);
-          var el1 = dom.createElement("li");
-          var el2 = dom.createTextNode("Contraband Found");
-          dom.appendChild(el1, el2);
-          dom.appendChild(el0, el1);
-          var el1 = dom.createTextNode("\n        	");
-          dom.appendChild(el0, el1);
-          var el1 = dom.createElement("li");
-          var el2 = dom.createTextNode("Missing Paperwork");
-          dom.appendChild(el1, el2);
-          dom.appendChild(el0, el1);
-          var el1 = dom.createTextNode("\n        	");
-          dom.appendChild(el0, el1);
-          var el1 = dom.createElement("li");
-          var el2 = dom.createTextNode("Failed Search");
-          dom.appendChild(el1, el2);
-          dom.appendChild(el0, el1);
-          var el1 = dom.createTextNode("\n        	");
-          dom.appendChild(el0, el1);
-          var el1 = dom.createElement("li");
-          var el2 = dom.createTextNode("Failed Itemizer");
-          dom.appendChild(el1, el2);
-          dom.appendChild(el0, el1);
-          var el1 = dom.createTextNode("\n        	");
-          dom.appendChild(el0, el1);
-          var el1 = dom.createElement("li");
-          var el2 = dom.createTextNode("Arrived at Wrong Time");
-          dom.appendChild(el1, el2);
-          dom.appendChild(el0, el1);
-          var el1 = dom.createTextNode("\n        	");
-          dom.appendChild(el0, el1);
-          var el1 = dom.createElement("li");
-          var el2 = dom.createTextNode("Other");
-          dom.appendChild(el1, el2);
-          dom.appendChild(el0, el1);
-          var el1 = dom.createTextNode("\n");
-          dom.appendChild(el0, el1);
-          return el0;
-        },
-        buildRenderNodes: function buildRenderNodes() {
-          return [];
-        },
-        statements: [],
-        locals: [],
-        templates: []
-      };
-    })();
-    var child1 = (function () {
       var child0 = (function () {
         return {
           meta: {
@@ -1043,12 +985,54 @@ define("portal/components/element-dropdown/template", ["exports"], function (exp
             "loc": {
               "source": null,
               "start": {
-                "line": 51,
-                "column": 16
+                "line": 6,
+                "column": 2
               },
               "end": {
-                "line": 60,
-                "column": 16
+                "line": 12,
+                "column": 2
+              }
+            },
+            "moduleName": "portal/components/element-dropdown/template.hbs"
+          },
+          isEmpty: false,
+          arity: 1,
+          cachedFragment: null,
+          hasRendered: false,
+          buildFragment: function buildFragment(dom) {
+            var el0 = dom.createDocumentFragment();
+            var el1 = dom.createTextNode("    ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createComment("");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createTextNode("\n");
+            dom.appendChild(el0, el1);
+            return el0;
+          },
+          buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+            var morphs = new Array(1);
+            morphs[0] = dom.createMorphAt(fragment, 1, 1, contextualElement);
+            return morphs;
+          },
+          statements: [["content", "type.name", ["loc", [null, [11, 4], [11, 17]]]]],
+          locals: ["type"],
+          templates: []
+        };
+      })();
+      var child1 = (function () {
+        return {
+          meta: {
+            "fragmentReason": false,
+            "revision": "Ember@2.5.1",
+            "loc": {
+              "source": null,
+              "start": {
+                "line": 15,
+                "column": 4
+              },
+              "end": {
+                "line": 22,
+                "column": 4
               }
             },
             "moduleName": "portal/components/element-dropdown/template.hbs"
@@ -1059,49 +1043,121 @@ define("portal/components/element-dropdown/template", ["exports"], function (exp
           hasRendered: false,
           buildFragment: function buildFragment(dom) {
             var el0 = dom.createDocumentFragment();
-            var el1 = dom.createTextNode("                    ");
+            var el1 = dom.createTextNode("      ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createElement("li");
+            var el2 = dom.createTextNode("Contraband Found");
+            dom.appendChild(el1, el2);
+            dom.appendChild(el0, el1);
+            var el1 = dom.createTextNode("\n      ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createElement("li");
+            var el2 = dom.createTextNode("Missing Paperwork");
+            dom.appendChild(el1, el2);
+            dom.appendChild(el0, el1);
+            var el1 = dom.createTextNode("\n      ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createElement("li");
+            var el2 = dom.createTextNode("Failed Search");
+            dom.appendChild(el1, el2);
+            dom.appendChild(el0, el1);
+            var el1 = dom.createTextNode("\n      ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createElement("li");
+            var el2 = dom.createTextNode("Failed Itemizer");
+            dom.appendChild(el1, el2);
+            dom.appendChild(el0, el1);
+            var el1 = dom.createTextNode("\n      ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createElement("li");
+            var el2 = dom.createTextNode("Arrived at Wrong Time");
+            dom.appendChild(el1, el2);
+            dom.appendChild(el0, el1);
+            var el1 = dom.createTextNode("\n      ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createElement("li");
+            var el2 = dom.createTextNode("Other");
+            dom.appendChild(el1, el2);
+            dom.appendChild(el0, el1);
+            var el1 = dom.createTextNode("\n");
+            dom.appendChild(el0, el1);
+            return el0;
+          },
+          buildRenderNodes: function buildRenderNodes() {
+            return [];
+          },
+          statements: [],
+          locals: [],
+          templates: []
+        };
+      })();
+      var child2 = (function () {
+        return {
+          meta: {
+            "fragmentReason": false,
+            "revision": "Ember@2.5.1",
+            "loc": {
+              "source": null,
+              "start": {
+                "line": 23,
+                "column": 3
+              },
+              "end": {
+                "line": 32,
+                "column": 5
+              }
+            },
+            "moduleName": "portal/components/element-dropdown/template.hbs"
+          },
+          isEmpty: false,
+          arity: 0,
+          cachedFragment: null,
+          hasRendered: false,
+          buildFragment: function buildFragment(dom) {
+            var el0 = dom.createDocumentFragment();
+            var el1 = dom.createTextNode("      ");
             dom.appendChild(el0, el1);
             var el1 = dom.createElement("li");
             var el2 = dom.createTextNode("Common Carrier");
             dom.appendChild(el1, el2);
             dom.appendChild(el0, el1);
-            var el1 = dom.createTextNode("\n                    ");
+            var el1 = dom.createTextNode("\n      ");
             dom.appendChild(el0, el1);
             var el1 = dom.createElement("li");
             var el2 = dom.createTextNode("Non Common Carrier");
             dom.appendChild(el1, el2);
             dom.appendChild(el0, el1);
-            var el1 = dom.createTextNode("\n                    ");
+            var el1 = dom.createTextNode("\n      ");
             dom.appendChild(el0, el1);
             var el1 = dom.createElement("li");
             var el2 = dom.createTextNode("Bulk Materials");
             dom.appendChild(el1, el2);
             dom.appendChild(el0, el1);
-            var el1 = dom.createTextNode("\n                    ");
+            var el1 = dom.createTextNode("\n      ");
             dom.appendChild(el0, el1);
             var el1 = dom.createElement("li");
             var el2 = dom.createTextNode("Radioactive Or Hazmat");
             dom.appendChild(el1, el2);
             dom.appendChild(el0, el1);
-            var el1 = dom.createTextNode("\n                    ");
+            var el1 = dom.createTextNode("\n      ");
             dom.appendChild(el0, el1);
             var el1 = dom.createElement("li");
             var el2 = dom.createTextNode("Emergency");
             dom.appendChild(el1, el2);
             dom.appendChild(el0, el1);
-            var el1 = dom.createTextNode("\n                    ");
+            var el1 = dom.createTextNode("\n      ");
             dom.appendChild(el0, el1);
             var el1 = dom.createElement("li");
             var el2 = dom.createTextNode("Construction");
             dom.appendChild(el1, el2);
             dom.appendChild(el0, el1);
-            var el1 = dom.createTextNode("\n                    ");
+            var el1 = dom.createTextNode("\n      ");
             dom.appendChild(el0, el1);
             var el1 = dom.createElement("li");
             var el2 = dom.createTextNode("Passenger IMP");
             dom.appendChild(el1, el2);
             dom.appendChild(el0, el1);
-            var el1 = dom.createTextNode("\n                    ");
+            var el1 = dom.createTextNode("\n      ");
             dom.appendChild(el0, el1);
             var el1 = dom.createElement("li");
             var el2 = dom.createTextNode("PassengerNon IMP");
@@ -1119,7 +1175,101 @@ define("portal/components/element-dropdown/template", ["exports"], function (exp
           templates: []
         };
       })();
-      var child1 = (function () {
+      return {
+        meta: {
+          "fragmentReason": {
+            "name": "missing-wrapper",
+            "problems": ["multiple-nodes", "wrong-type"]
+          },
+          "revision": "Ember@2.5.1",
+          "loc": {
+            "source": null,
+            "start": {
+              "line": 1,
+              "column": 0
+            },
+            "end": {
+              "line": 34,
+              "column": 0
+            }
+          },
+          "moduleName": "portal/components/element-dropdown/template.hbs"
+        },
+        isEmpty: false,
+        arity: 0,
+        cachedFragment: null,
+        hasRendered: false,
+        buildFragment: function buildFragment(dom) {
+          var el0 = dom.createDocumentFragment();
+          var el1 = dom.createTextNode(" ");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createElement("br");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createTextNode(" ");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createElement("br");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createTextNode("\n  ");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createElement("div");
+          dom.setAttribute(el1, "class", "questionText");
+          var el2 = dom.createTextNode("Question Text");
+          dom.appendChild(el1, el2);
+          dom.appendChild(el0, el1);
+          var el1 = dom.createTextNode("\n  ");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createComment("");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createTextNode("\n  ");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createElement("br");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createTextNode("\n  ");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createElement("div");
+          var el2 = dom.createTextNode("DROPDOWN LIST SELECTION");
+          dom.appendChild(el1, el2);
+          dom.appendChild(el0, el1);
+          var el1 = dom.createTextNode("\n");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createComment("");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createTextNode("  ");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createElement("br");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createTextNode("\n  ");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createElement("ul");
+          var el2 = dom.createTextNode("\n");
+          dom.appendChild(el1, el2);
+          var el2 = dom.createComment("");
+          dom.appendChild(el1, el2);
+          var el2 = dom.createComment("");
+          dom.appendChild(el1, el2);
+          var el2 = dom.createTextNode("   ");
+          dom.appendChild(el1, el2);
+          dom.appendChild(el0, el1);
+          var el1 = dom.createTextNode("\n");
+          dom.appendChild(el0, el1);
+          return el0;
+        },
+        buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+          var element0 = dom.childAt(fragment, [17]);
+          var morphs = new Array(4);
+          morphs[0] = dom.createMorphAt(fragment, 7, 7, contextualElement);
+          morphs[1] = dom.createMorphAt(fragment, 13, 13, contextualElement);
+          morphs[2] = dom.createMorphAt(element0, 1, 1);
+          morphs[3] = dom.createMorphAt(element0, 2, 2);
+          return morphs;
+        },
+        statements: [["inline", "input", [], ["class", "form-control", "type", "text", "value", ["subexpr", "@mut", [["get", "input.name", ["loc", [null, [3, 49], [3, 59]]]]], [], []], "placeholder", "Question"], ["loc", [null, [3, 2], [3, 84]]]], ["block", "power-select", [], ["selected", ["subexpr", "@mut", [["get", "currentDropdownChoice", ["loc", [null, [7, 13], [7, 34]]]]], [], []], "searchEnabled", false, "options", ["subexpr", "@mut", [["get", "dropdownOptions", ["loc", [null, [9, 12], [9, 27]]]]], [], []], "onchange", ["subexpr", "action", ["onDropDownTypeClick"], [], ["loc", [null, [10, 13], [10, 43]]]]], 0, null, ["loc", [null, [6, 2], [12, 19]]]], ["block", "if", [["subexpr", "eq", [["get", "input.placeholder", ["loc", [null, [15, 14], [15, 31]]]], "Contraband Found, Missing Paperwork, Failed Search, Failed Itemizer, Arrived at Wrong Time, Other"], [], ["loc", [null, [15, 10], [15, 132]]]]], [], 1, null, ["loc", [null, [15, 4], [22, 11]]]], ["block", "if", [["subexpr", "eq", [["get", "input.placeholder", ["loc", [null, [23, 13], [23, 30]]]], "Common Carrier, Non Common Carrier, Bulk Materials, Radioactive Or Hazmat, Emergency, Construction, Passenger IMP, PassengerNon IMP"], [], ["loc", [null, [23, 9], [23, 165]]]]], [], 2, null, ["loc", [null, [23, 3], [32, 12]]]]],
+        locals: [],
+        templates: [child0, child1, child2]
+      };
+    })();
+    var child1 = (function () {
+      var child0 = (function () {
         return {
           meta: {
             "fragmentReason": false,
@@ -1127,12 +1277,12 @@ define("portal/components/element-dropdown/template", ["exports"], function (exp
             "loc": {
               "source": null,
               "start": {
-                "line": 60,
-                "column": 16
+                "line": 38,
+                "column": 4
               },
               "end": {
-                "line": 63,
-                "column": 16
+                "line": 45,
+                "column": 4
               }
             },
             "moduleName": "portal/components/element-dropdown/template.hbs"
@@ -1143,6 +1293,42 @@ define("portal/components/element-dropdown/template", ["exports"], function (exp
           hasRendered: false,
           buildFragment: function buildFragment(dom) {
             var el0 = dom.createDocumentFragment();
+            var el1 = dom.createTextNode("      ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createElement("li");
+            var el2 = dom.createTextNode("Contraband Found");
+            dom.appendChild(el1, el2);
+            dom.appendChild(el0, el1);
+            var el1 = dom.createTextNode("\n      ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createElement("li");
+            var el2 = dom.createTextNode("Missing Paperwork");
+            dom.appendChild(el1, el2);
+            dom.appendChild(el0, el1);
+            var el1 = dom.createTextNode("\n      ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createElement("li");
+            var el2 = dom.createTextNode("Failed Search");
+            dom.appendChild(el1, el2);
+            dom.appendChild(el0, el1);
+            var el1 = dom.createTextNode("\n      ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createElement("li");
+            var el2 = dom.createTextNode("Failed Itemizer");
+            dom.appendChild(el1, el2);
+            dom.appendChild(el0, el1);
+            var el1 = dom.createTextNode("\n      ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createElement("li");
+            var el2 = dom.createTextNode("Arrived at Wrong Time");
+            dom.appendChild(el1, el2);
+            dom.appendChild(el0, el1);
+            var el1 = dom.createTextNode("\n      ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createElement("li");
+            var el2 = dom.createTextNode("Other");
+            dom.appendChild(el1, el2);
+            dom.appendChild(el0, el1);
             var el1 = dom.createTextNode("\n");
             dom.appendChild(el0, el1);
             return el0;
@@ -1155,6 +1341,164 @@ define("portal/components/element-dropdown/template", ["exports"], function (exp
           templates: []
         };
       })();
+      var child1 = (function () {
+        var child0 = (function () {
+          return {
+            meta: {
+              "fragmentReason": false,
+              "revision": "Ember@2.5.1",
+              "loc": {
+                "source": null,
+                "start": {
+                  "line": 46,
+                  "column": 6
+                },
+                "end": {
+                  "line": 55,
+                  "column": 6
+                }
+              },
+              "moduleName": "portal/components/element-dropdown/template.hbs"
+            },
+            isEmpty: false,
+            arity: 0,
+            cachedFragment: null,
+            hasRendered: false,
+            buildFragment: function buildFragment(dom) {
+              var el0 = dom.createDocumentFragment();
+              var el1 = dom.createTextNode("        ");
+              dom.appendChild(el0, el1);
+              var el1 = dom.createElement("li");
+              var el2 = dom.createTextNode("Common Carrier");
+              dom.appendChild(el1, el2);
+              dom.appendChild(el0, el1);
+              var el1 = dom.createTextNode("\n        ");
+              dom.appendChild(el0, el1);
+              var el1 = dom.createElement("li");
+              var el2 = dom.createTextNode("Non Common Carrier");
+              dom.appendChild(el1, el2);
+              dom.appendChild(el0, el1);
+              var el1 = dom.createTextNode("\n        ");
+              dom.appendChild(el0, el1);
+              var el1 = dom.createElement("li");
+              var el2 = dom.createTextNode("Bulk Materials");
+              dom.appendChild(el1, el2);
+              dom.appendChild(el0, el1);
+              var el1 = dom.createTextNode("\n        ");
+              dom.appendChild(el0, el1);
+              var el1 = dom.createElement("li");
+              var el2 = dom.createTextNode("Radioactive Or Hazmat");
+              dom.appendChild(el1, el2);
+              dom.appendChild(el0, el1);
+              var el1 = dom.createTextNode("\n        ");
+              dom.appendChild(el0, el1);
+              var el1 = dom.createElement("li");
+              var el2 = dom.createTextNode("Emergency");
+              dom.appendChild(el1, el2);
+              dom.appendChild(el0, el1);
+              var el1 = dom.createTextNode("\n        ");
+              dom.appendChild(el0, el1);
+              var el1 = dom.createElement("li");
+              var el2 = dom.createTextNode("Construction");
+              dom.appendChild(el1, el2);
+              dom.appendChild(el0, el1);
+              var el1 = dom.createTextNode("\n        ");
+              dom.appendChild(el0, el1);
+              var el1 = dom.createElement("li");
+              var el2 = dom.createTextNode("Passenger IMP");
+              dom.appendChild(el1, el2);
+              dom.appendChild(el0, el1);
+              var el1 = dom.createTextNode("\n        ");
+              dom.appendChild(el0, el1);
+              var el1 = dom.createElement("li");
+              var el2 = dom.createTextNode("PassengerNon IMP");
+              dom.appendChild(el1, el2);
+              dom.appendChild(el0, el1);
+              var el1 = dom.createTextNode("\n");
+              dom.appendChild(el0, el1);
+              return el0;
+            },
+            buildRenderNodes: function buildRenderNodes() {
+              return [];
+            },
+            statements: [],
+            locals: [],
+            templates: []
+          };
+        })();
+        var child1 = (function () {
+          return {
+            meta: {
+              "fragmentReason": false,
+              "revision": "Ember@2.5.1",
+              "loc": {
+                "source": null,
+                "start": {
+                  "line": 55,
+                  "column": 6
+                },
+                "end": {
+                  "line": 57,
+                  "column": 6
+                }
+              },
+              "moduleName": "portal/components/element-dropdown/template.hbs"
+            },
+            isEmpty: true,
+            arity: 0,
+            cachedFragment: null,
+            hasRendered: false,
+            buildFragment: function buildFragment(dom) {
+              var el0 = dom.createDocumentFragment();
+              return el0;
+            },
+            buildRenderNodes: function buildRenderNodes() {
+              return [];
+            },
+            statements: [],
+            locals: [],
+            templates: []
+          };
+        })();
+        return {
+          meta: {
+            "fragmentReason": false,
+            "revision": "Ember@2.5.1",
+            "loc": {
+              "source": null,
+              "start": {
+                "line": 45,
+                "column": 4
+              },
+              "end": {
+                "line": 58,
+                "column": 4
+              }
+            },
+            "moduleName": "portal/components/element-dropdown/template.hbs"
+          },
+          isEmpty: false,
+          arity: 0,
+          cachedFragment: null,
+          hasRendered: false,
+          buildFragment: function buildFragment(dom) {
+            var el0 = dom.createDocumentFragment();
+            var el1 = dom.createComment("");
+            dom.appendChild(el0, el1);
+            return el0;
+          },
+          buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
+            var morphs = new Array(1);
+            morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
+            dom.insertBoundary(fragment, 0);
+            dom.insertBoundary(fragment, null);
+            return morphs;
+          },
+          statements: [["block", "if", [["subexpr", "eq", [["get", "input.placeholder", ["loc", [null, [46, 16], [46, 33]]]], "Common Carrier, Non Common Carrier, Bulk Materials, Radioactive Or Hazmat, Emergency, Construction, Passenger IMP, PassengerNon IMP"], [], ["loc", [null, [46, 12], [46, 168]]]]], [], 0, 1, ["loc", [null, [46, 6], [57, 13]]]]],
+          locals: [],
+          templates: [child0, child1]
+        };
+      })();
       return {
         meta: {
           "fragmentReason": false,
@@ -1162,12 +1506,12 @@ define("portal/components/element-dropdown/template", ["exports"], function (exp
           "loc": {
             "source": null,
             "start": {
-              "line": 50,
-              "column": 8
+              "line": 34,
+              "column": 0
             },
             "end": {
-              "line": 64,
-              "column": 8
+              "line": 60,
+              "column": 0
             }
           },
           "moduleName": "portal/components/element-dropdown/template.hbs"
@@ -1178,18 +1522,37 @@ define("portal/components/element-dropdown/template", ["exports"], function (exp
         hasRendered: false,
         buildFragment: function buildFragment(dom) {
           var el0 = dom.createDocumentFragment();
-          var el1 = dom.createComment("");
+          var el1 = dom.createTextNode("  ");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createElement("br");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createTextNode("\n  ");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createElement("div");
+          var el2 = dom.createComment("");
+          dom.appendChild(el1, el2);
+          dom.appendChild(el0, el1);
+          var el1 = dom.createTextNode("\n	");
+          dom.appendChild(el0, el1);
+          var el1 = dom.createElement("ul");
+          var el2 = dom.createTextNode("\n");
+          dom.appendChild(el1, el2);
+          var el2 = dom.createComment("");
+          dom.appendChild(el1, el2);
+          var el2 = dom.createTextNode("  ");
+          dom.appendChild(el1, el2);
+          dom.appendChild(el0, el1);
+          var el1 = dom.createTextNode("\n");
           dom.appendChild(el0, el1);
           return el0;
         },
         buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-          var morphs = new Array(1);
-          morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
-          dom.insertBoundary(fragment, 0);
-          dom.insertBoundary(fragment, null);
+          var morphs = new Array(2);
+          morphs[0] = dom.createMorphAt(dom.childAt(fragment, [3]), 0, 0);
+          morphs[1] = dom.createMorphAt(dom.childAt(fragment, [5]), 1, 1);
           return morphs;
         },
-        statements: [["block", "if", [["subexpr", "eq", [["get", "input.placeholder", ["loc", [null, [51, 26], [51, 43]]]], "Common Carrier, Non Common Carrier, Bulk Materials, Radioactive Or Hazmat, Emergency, Construction, Passenger IMP, PassengerNon IMP"], [], ["loc", [null, [51, 22], [51, 178]]]]], [], 0, 1, ["loc", [null, [51, 16], [63, 23]]]]],
+        statements: [["content", "input.name", ["loc", [null, [36, 7], [36, 21]]]], ["block", "if", [["subexpr", "eq", [["get", "input.placeholder", ["loc", [null, [38, 14], [38, 31]]]], "Contraband Found, Missing Paperwork, Failed Search, Failed Itemizer, Arrived at Wrong Time, Other"], [], ["loc", [null, [38, 10], [38, 132]]]]], [], 0, 1, ["loc", [null, [38, 4], [58, 11]]]]],
         locals: [],
         templates: [child0, child1]
       };
@@ -1198,7 +1561,7 @@ define("portal/components/element-dropdown/template", ["exports"], function (exp
       meta: {
         "fragmentReason": {
           "name": "missing-wrapper",
-          "problems": ["multiple-nodes"]
+          "problems": ["wrong-type"]
         },
         "revision": "Ember@2.5.1",
         "loc": {
@@ -1208,8 +1571,8 @@ define("portal/components/element-dropdown/template", ["exports"], function (exp
             "column": 0
           },
           "end": {
-            "line": 68,
-            "column": 18
+            "line": 61,
+            "column": 0
           }
         },
         "moduleName": "portal/components/element-dropdown/template.hbs"
@@ -1220,37 +1583,18 @@ define("portal/components/element-dropdown/template", ["exports"], function (exp
       hasRendered: false,
       buildFragment: function buildFragment(dom) {
         var el0 = dom.createDocumentFragment();
-        var el1 = dom.createTextNode("    ");
-        dom.appendChild(el0, el1);
-        var el1 = dom.createElement("br");
-        dom.appendChild(el0, el1);
-        var el1 = dom.createTextNode("\n    ");
-        dom.appendChild(el0, el1);
-        var el1 = dom.createElement("div");
-        var el2 = dom.createComment("");
-        dom.appendChild(el1, el2);
-        dom.appendChild(el0, el1);
-        var el1 = dom.createTextNode("\n\n	");
-        dom.appendChild(el0, el1);
-        var el1 = dom.createElement("ul");
-        var el2 = dom.createTextNode("\n");
-        dom.appendChild(el1, el2);
-        var el2 = dom.createComment("");
-        dom.appendChild(el1, el2);
-        var el2 = dom.createTextNode("\n    	\n    ");
-        dom.appendChild(el1, el2);
-        dom.appendChild(el0, el1);
-        var el1 = dom.createTextNode("\n");
+        var el1 = dom.createComment("");
         dom.appendChild(el0, el1);
         return el0;
       },
       buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
-        var morphs = new Array(2);
-        morphs[0] = dom.createMorphAt(dom.childAt(fragment, [3]), 0, 0);
-        morphs[1] = dom.createMorphAt(dom.childAt(fragment, [5]), 1, 1);
+        var morphs = new Array(1);
+        morphs[0] = dom.createMorphAt(fragment, 0, 0, contextualElement);
+        dom.insertBoundary(fragment, 0);
+        dom.insertBoundary(fragment, null);
         return morphs;
       },
-      statements: [["content", "input.name", ["loc", [null, [40, 9], [40, 23]]]], ["block", "if", [["subexpr", "eq", [["get", "input.placeholder", ["loc", [null, [43, 18], [43, 35]]]], "Contraband Found, Missing Paperwork, Failed Search, Failed Itemizer, Arrived at Wrong Time, Other"], [], ["loc", [null, [43, 14], [43, 136]]]]], [], 0, 1, ["loc", [null, [43, 8], [64, 15]]]]],
+      statements: [["block", "if", [["get", "isActive", ["loc", [null, [1, 6], [1, 14]]]]], [], 0, 1, ["loc", [null, [1, 0], [60, 7]]]]],
       locals: [],
       templates: [child0, child1]
     };
@@ -1874,7 +2218,7 @@ define("portal/components/element-parent/template", ["exports"], function (expor
               },
               "end": {
                 "line": 47,
-                "column": 2
+                "column": 7
               }
             },
             "moduleName": "portal/components/element-parent/template.hbs"
@@ -1934,7 +2278,7 @@ define("portal/components/element-parent/template", ["exports"], function (expor
             dom.appendChild(el0, el1);
             var el1 = dom.createElement("br");
             dom.appendChild(el0, el1);
-            var el1 = dom.createTextNode("\n");
+            var el1 = dom.createTextNode("\n  ");
             dom.appendChild(el0, el1);
             return el0;
           },
@@ -1959,7 +2303,7 @@ define("portal/components/element-parent/template", ["exports"], function (expor
               "source": null,
               "start": {
                 "line": 47,
-                "column": 2
+                "column": 7
               },
               "end": {
                 "line": 53,
@@ -1974,19 +2318,27 @@ define("portal/components/element-parent/template", ["exports"], function (expor
           hasRendered: false,
           buildFragment: function buildFragment(dom) {
             var el0 = dom.createDocumentFragment();
-            var el1 = dom.createTextNode("    ");
+            var el1 = dom.createComment("  ");
             dom.appendChild(el0, el1);
-            var el1 = dom.createElement("div");
-            dom.setAttribute(el1, "class", "topOptions");
-            var el2 = dom.createTextNode("\n        ");
-            dom.appendChild(el1, el2);
-            var el2 = dom.createElement("div");
-            dom.setAttribute(el2, "class", "pull-right");
-            var el3 = dom.createTextNode("\n            Uneditable Dropdown\n        ");
-            dom.appendChild(el2, el3);
-            dom.appendChild(el1, el2);
-            var el2 = dom.createTextNode("\n    ");
-            dom.appendChild(el1, el2);
+            var el1 = dom.createTextNode("\n  ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createComment("   <div class=\"topOptions\"> ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createTextNode("\n  ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createComment("       <div class=\"pull-right\"> ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createTextNode("\n  ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createComment("           Uneditable Dropdown ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createTextNode("\n  ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createComment("       </div> ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createTextNode("\n  ");
+            dom.appendChild(el0, el1);
+            var el1 = dom.createComment("   </div> ");
             dom.appendChild(el0, el1);
             var el1 = dom.createTextNode("\n");
             dom.appendChild(el0, el1);
@@ -7536,7 +7888,7 @@ catch(err) {
 /* jshint ignore:start */
 
 if (!runningTests) {
-  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+89dff1c6"});
+  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+c80b060d"});
 }
 
 /* jshint ignore:end */

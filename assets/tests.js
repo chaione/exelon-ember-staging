@@ -103,7 +103,7 @@ define('portal/tests/components/element-dropdown/component.jshint', ['exports'],
   QUnit.module('JSHint | components/element-dropdown/component.js');
   QUnit.test('should pass jshint', function (assert) {
     assert.expect(1);
-    assert.ok(false, 'components/element-dropdown/component.js should pass jshint.\ncomponents/element-dropdown/component.js: line 16, col 43, Expected \'===\' and instead saw \'==\'.\n\n1 error');
+    assert.ok(false, 'components/element-dropdown/component.js should pass jshint.\ncomponents/element-dropdown/component.js: line 32, col 7, Bad line breaking before \'?\'.\n\n1 error');
   });
 });
 define('portal/tests/components/element-free-text/component.jshint', ['exports'], function (exports) {
