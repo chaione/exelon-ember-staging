@@ -6195,3 +6195,8 @@ li.ember-power-select-option {
   display: inline-block;
   margin: 10px;
   background-color: blue; }
+
+.ember-power-select-trigger[aria-disabled=true] {
+  background-color: grey;
+  color: #CCCCCC;
+  cursor: not-allowed; }
