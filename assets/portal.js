@@ -19,6 +19,7 @@ define('portal/app', ['exports', 'ember', 'portal/resolver', 'ember-load-initial
   });
 
   (0, _emberLoadInitializers['default'])(App, _portalConfigEnvironment['default'].modulePrefix);
+  console.log('Last build', _portalConfigEnvironment['default'].buildTime);
 
   exports['default'] = App;
 });
@@ -7819,7 +7820,7 @@ catch(err) {
 /* jshint ignore:start */
 
 if (!runningTests) {
-  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+df4062d2"});
+  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+0bbceb07"});
 }
 
 /* jshint ignore:end */
