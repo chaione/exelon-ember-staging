@@ -521,13 +521,13 @@ define("portal/components/element-checklist-item/template", ["exports"], functio
         hasRendered: false,
         buildFragment: function buildFragment(dom) {
           var el0 = dom.createDocumentFragment();
-          var el1 = dom.createTextNode("	");
+          var el1 = dom.createTextNode("  ");
           dom.appendChild(el0, el1);
           var el1 = dom.createElement("div");
           var el2 = dom.createTextNode("Item Text");
           dom.appendChild(el1, el2);
           dom.appendChild(el0, el1);
-          var el1 = dom.createTextNode("\n    ");
+          var el1 = dom.createTextNode("\n  ");
           dom.appendChild(el0, el1);
           var el1 = dom.createComment("");
           dom.appendChild(el0, el1);
@@ -540,7 +540,7 @@ define("portal/components/element-checklist-item/template", ["exports"], functio
           morphs[0] = dom.createMorphAt(fragment, 3, 3, contextualElement);
           return morphs;
         },
-        statements: [["inline", "input", [], ["class", "form-control", "type", "text", "value", ["subexpr", "@mut", [["get", "input.name", ["loc", [null, [3, 51], [3, 61]]]]], [], []], "placeholder", "Question"], ["loc", [null, [3, 4], [3, 86]]]]],
+        statements: [["inline", "input", [], ["type", "text", "class", "form-control", "value", ["subexpr", "@mut", [["get", "input.metadata.text-body", ["loc", [null, [3, 49], [3, 73]]]]], [], []], "placeholder", "Question"], ["loc", [null, [3, 2], [3, 98]]]]],
         locals: [],
         templates: []
       };
@@ -557,7 +557,7 @@ define("portal/components/element-checklist-item/template", ["exports"], functio
               "column": 0
             },
             "end": {
-              "line": 8,
+              "line": 6,
               "column": 0
             }
           },
@@ -569,14 +569,10 @@ define("portal/components/element-checklist-item/template", ["exports"], functio
         hasRendered: false,
         buildFragment: function buildFragment(dom) {
           var el0 = dom.createDocumentFragment();
-          var el1 = dom.createTextNode("    ");
+          var el1 = dom.createTextNode("  ");
           dom.appendChild(el0, el1);
           var el1 = dom.createElement("div");
-          var el2 = dom.createTextNode("\n		");
-          dom.appendChild(el1, el2);
           var el2 = dom.createComment("");
-          dom.appendChild(el1, el2);
-          var el2 = dom.createTextNode("\n	");
           dom.appendChild(el1, el2);
           dom.appendChild(el0, el1);
           var el1 = dom.createTextNode("\n");
@@ -585,10 +581,10 @@ define("portal/components/element-checklist-item/template", ["exports"], functio
         },
         buildRenderNodes: function buildRenderNodes(dom, fragment, contextualElement) {
           var morphs = new Array(1);
-          morphs[0] = dom.createMorphAt(dom.childAt(fragment, [1]), 1, 1);
+          morphs[0] = dom.createUnsafeMorphAt(dom.childAt(fragment, [1]), 0, 0);
           return morphs;
         },
-        statements: [["content", "input.name", ["loc", [null, [6, 2], [6, 16]]]]],
+        statements: [["content", "input.metadata.text-body", ["loc", [null, [5, 7], [5, 37]]]]],
         locals: [],
         templates: []
       };
@@ -607,7 +603,7 @@ define("portal/components/element-checklist-item/template", ["exports"], functio
             "column": 0
           },
           "end": {
-            "line": 8,
+            "line": 6,
             "column": 7
           }
         },
@@ -630,7 +626,7 @@ define("portal/components/element-checklist-item/template", ["exports"], functio
         dom.insertBoundary(fragment, null);
         return morphs;
       },
-      statements: [["block", "if", [["get", "isActive", ["loc", [null, [1, 6], [1, 14]]]]], [], 0, 1, ["loc", [null, [1, 0], [8, 7]]]]],
+      statements: [["block", "if", [["get", "isActive", ["loc", [null, [1, 6], [1, 14]]]]], [], 0, 1, ["loc", [null, [1, 0], [6, 7]]]]],
       locals: [],
       templates: [child0, child1]
     };
@@ -1995,6 +1991,7 @@ define('portal/components/element-parent/component', ['exports', 'ember'], funct
     // label
 
     // const keys=  ['sealing-site-phone','shipping-location','receiving-location','sealing-date','container-type','cargo-description','container-number','seal-number','seal-type','manager-notes','check-common','checklist-step-1','checklist-step-2','checklist-step-3','checklist-step-4','checklist-step-5'];
+
     exports['default'] = _ember['default'].Component.extend({
         store: _ember['default'].inject.service(),
 
@@ -2075,6 +2072,7 @@ define('portal/components/element-parent/component', ['exports', 'ember'], funct
                 this.set('formElement.key', selection);
                 console.log(keys);
             },
+
             hideCreateOptionOnSameName: function hideCreateOptionOnSameName(key) {
                 var isExistingOption = false;
                 var keys = this.get('keys');
@@ -2086,17 +2084,19 @@ define('portal/components/element-parent/component', ['exports', 'ember'], funct
                 }
                 return !isExistingOption;
             },
+
             deleteElement: function deleteElement() {
                 // const element = this.get('formElement.id')
-
                 this.sendAction('deleteElement', this.get('formElement.id'));
             },
+
             onElementClick: function onElementClick() {
                 // this.get('formElement.name')
                 if (!this.get('isActive')) {
                     this.get('onElementClick')();
                 }
             },
+
             onElementKeyClick: function onElementKeyClick(selection) {
                 // console.log(sele);
                 this.set('currentKey', selection);
@@ -5035,16 +5035,22 @@ define('portal/form/controller', ['exports', 'ember', 'portal/config/environment
                 var form = this.get('model');
                 var lastSection = section;
                 var newElement = this.store.createRecord('element', {
-                    element_type: 'text'
+                    element_type: 'text',
+                    metadata: {}
                 });
                 section.get('elements').addObject(newElement);
             },
+
             addElementAfterElement: function addElementAfterElement(section, element, index) {
+                this.send('becomeDirty');
+                var form = this.get('model');
                 var newElement = this.store.createRecord('element', {
-                    element_type: 'text'
+                    element_type: 'text',
+                    metadata: {}
                 });
                 section.get('elements').insertAt(index + 1, newElement);
             },
+
             addSection: function addSection() {
                 var form = this.get('model');
                 form.send('becomeDirty');
@@ -5054,9 +5060,11 @@ define('portal/form/controller', ['exports', 'ember', 'portal/config/environment
                 });
                 this.becomeDirty();
             },
+
             becomeDirty: function becomeDirty() {
                 this.set('unsavedChanges', true);
             },
+
             deleteSection: function deleteSection(section) {
                 if (confirm("Are you sure you want to delete this section?") == true) {
                     var form = this.get('model');
@@ -5086,11 +5094,12 @@ define('portal/form/controller', ['exports', 'ember', 'portal/config/environment
                     this.send('becomeDirty');
                 } else {}
             },
+
             userDidClickElement: function userDidClickElement(elementClicked) {
-                console.log('elementId', elementClicked.get('id'));
-                console.log('elementType:', elementClicked.get('element_type'));
+                elementClicked.set('metadata', elementClicked.get('metadata') || {});
                 this.set('activeElement', elementClicked);
             },
+
             saveForm: function saveForm() {
                 this.set('unsavedChanges', false);
                 var self = this;
@@ -7820,7 +7829,7 @@ catch(err) {
 /* jshint ignore:start */
 
 if (!runningTests) {
-  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+0bbceb07"});
+  require("portal/app")["default"].create({"name":"portal","version":"0.0.0+f0c945f3"});
 }
 
 /* jshint ignore:end */
